@@ -1,0 +1,81 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Onboarding data
+  onboardingData OnboardingData?
+  subscriptions  Subscription[]
+
+  @@map("users")
+}
+
+model OnboardingData {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Step 1: Personal Info
+  role        String?
+  company     String?
+  companySize String?
+
+  // Step 2: Goals & Objectives
+  primaryGoals     String[] // Array of selected goals
+  industryType     String?
+  currentChallenges String[] // Array of challenges
+
+  // Step 3: Preferences & Setup
+  preferredFeatures String[] // Array of features
+  integrations     String[] // Array of integrations
+  teamSize         String?
+  budget           String?
+
+  // Step 4: AI Suggestions
+  aiRecommendations Json? // Store AI-generated recommendations
+  selectedPlan      String?
+
+  // Completion status
+  completedSteps Int     @default(0)
+  isCompleted    Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("onboarding_data")
+}
+
+model Subscription {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stripeCustomerId String?
+  stripeSubscriptionId String? @unique
+  stripePriceId    String?
+  stripeCurrentPeriodEnd DateTime?
+  
+  plan             String   // starter, professional, enterprise
+  status           String   // active, canceled, past_due, etc.
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("subscriptions")
+}
