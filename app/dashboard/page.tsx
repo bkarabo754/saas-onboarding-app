@@ -1,6 +1,7 @@
 'use client';
 
 import { useUser } from '@clerk/nextjs';
+import { useEffect, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -14,15 +15,177 @@ import {
   BarChart3,
   Users,
   Settings,
-  Bell,
   Plus,
   TrendingUp,
   Activity,
   Zap,
+  FolderPlus,
+  UserPlus,
+  Megaphone,
+  Code,
+  PartyPopper,
+  CheckCircle,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
+import { NotificationDropdown } from '@/components/ui/notification-dropdown';
+import { NewProjectModal } from '@/components/modals/new-project-modal';
+import { InviteTeamModal } from '@/components/modals/invite-team-modal';
+import Link from 'next/link';
+
+interface ActivityItem {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  type:
+    | 'team'
+    | 'project'
+    | 'integration'
+    | 'report'
+    | 'subscription'
+    | 'workspace'
+    | 'billing';
+  icon?: React.ComponentType<any>;
+  color?: string;
+}
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [stats, setStats] = useState({
+    totalProjects: 12,
+    teamMembers: 8,
+    activeTasks: 24,
+    efficiency: 95,
+  });
+
+  // Load activity from localStorage and listen for changes
+  useEffect(() => {
+    const loadActivity = () => {
+      // Load notifications as activity
+      const notifications = JSON.parse(
+        localStorage.getItem('notifications') || '[]'
+      );
+      const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+
+      // Convert notifications to activity items
+      const notificationActivity = notifications
+        .slice(0, 10)
+        .map((notif: any) => ({
+          id: notif.id,
+          title: notif.title,
+          description: notif.message,
+          time: getRelativeTime(new Date(notif.timestamp)),
+          type: notif.type,
+          icon: getActivityIcon(notif.type),
+          color: getActivityColor(notif.type),
+        }));
+
+      // Add some default activity if none exists
+      const defaultActivity: ActivityItem[] = [
+        {
+          id: 'default-1',
+          title: 'Welcome to your workspace!',
+          description: 'Your dashboard is ready to use',
+          time: '1 hour ago',
+          type: 'workspace',
+          icon: Zap,
+          color: 'bg-blue-100',
+        },
+      ];
+
+      const combinedActivity =
+        notificationActivity.length > 0
+          ? notificationActivity
+          : defaultActivity;
+      setRecentActivity(combinedActivity);
+
+      // Update stats based on stored data
+      setStats((prev) => ({
+        ...prev,
+        totalProjects: projects.length || prev.totalProjects,
+      }));
+    };
+
+    // Load initially
+    loadActivity();
+
+    // Listen for storage changes (when notifications are added)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'notifications' || e.key === 'projects') {
+        loadActivity();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also check for changes every 5 seconds (for same-tab updates)
+    const interval = setInterval(loadActivity, 5000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const getRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60)
+    );
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} days ago`;
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'team':
+        return UserPlus;
+      case 'project':
+        return FolderPlus;
+      case 'integration':
+        return Zap;
+      case 'report':
+        return BarChart3;
+      case 'subscription':
+        return CheckCircle;
+      case 'workspace':
+        return Settings;
+      case 'billing':
+        return AlertCircle;
+      default:
+        return Activity;
+    }
+  };
+
+  const getActivityColor = (type: string) => {
+    switch (type) {
+      case 'team':
+        return 'bg-purple-100';
+      case 'project':
+        return 'bg-blue-100';
+      case 'integration':
+        return 'bg-green-100';
+      case 'report':
+        return 'bg-orange-100';
+      case 'subscription':
+        return 'bg-emerald-100';
+      case 'workspace':
+        return 'bg-indigo-100';
+      case 'billing':
+        return 'bg-yellow-100';
+      default:
+        return 'bg-gray-100';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -39,17 +202,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Bell className="h-4 w-4 mr-2" />
-              Notifications
-            </Button>
-            <Button
-              size="sm"
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
+            <NotificationDropdown />
+            <NewProjectModal />
           </div>
         </div>
 
@@ -62,7 +216,9 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-600">
                     Total Projects
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">12</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.totalProjects}
+                  </p>
                   <p className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +2 this month
@@ -82,7 +238,9 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-600">
                     Team Members
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">8</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.teamMembers}
+                  </p>
                   <p className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +1 this week
@@ -102,7 +260,9 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-600">
                     Active Tasks
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">24</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.activeTasks}
+                  </p>
                   <p className="text-xs text-orange-600 flex items-center mt-1">
                     <Activity className="h-3 w-3 mr-1" />5 due today
                   </p>
@@ -121,7 +281,9 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium text-gray-600">
                     Automation
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">95%</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {stats.efficiency}%
+                  </p>
                   <p className="text-xs text-green-600 flex items-center mt-1">
                     <Zap className="h-3 w-3 mr-1" />
                     Efficiency
@@ -141,75 +303,63 @@ export default function DashboardPage() {
           <div className="lg:col-span-2">
             <Card className="border-0 shadow-lg">
               <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Your latest workspace updates</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>
+                      Your latest workspace updates
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.location.reload()}
+                  >
+                    <Activity className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  {
-                    title: 'New team member joined',
-                    description: 'Sarah Johnson joined the Marketing team',
-                    time: '2 hours ago',
-                    type: 'team',
-                  },
-                  {
-                    title: 'Project milestone completed',
-                    description: 'Website redesign Phase 1 is complete',
-                    time: '4 hours ago',
-                    type: 'project',
-                  },
-                  {
-                    title: 'Integration activated',
-                    description: 'Slack integration is now live',
-                    time: '1 day ago',
-                    type: 'integration',
-                  },
-                  {
-                    title: 'Report generated',
-                    description: 'Monthly analytics report is ready',
-                    time: '2 days ago',
-                    type: 'report',
-                  },
-                ].map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                  >
-                    <div
-                      className={`p-2 rounded-full ${
-                        item.type === 'team'
-                          ? 'bg-purple-100'
-                          : item.type === 'project'
-                            ? 'bg-blue-100'
-                            : item.type === 'integration'
-                              ? 'bg-green-100'
-                              : 'bg-orange-100'
-                      }`}
-                    >
-                      {item.type === 'team' && (
-                        <Users className="h-4 w-4 text-purple-600" />
-                      )}
-                      {item.type === 'project' && (
-                        <BarChart3 className="h-4 w-4 text-blue-600" />
-                      )}
-                      {item.type === 'integration' && (
-                        <Zap className="h-4 w-4 text-green-600" />
-                      )}
-                      {item.type === 'report' && (
-                        <Activity className="h-4 w-4 text-orange-600" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">
-                        {item.title}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {item.description}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">{item.time}</p>
-                    </div>
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((item) => {
+                    const IconComponent = item.icon || Activity;
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div
+                          className={`p-2 rounded-full ${item.color || 'bg-gray-100'}`}
+                        >
+                          <IconComponent className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">
+                            {item.title}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {item.description}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {item.time}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {item.type}
+                        </Badge>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8">
+                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No recent activity</p>
+                    <p className="text-sm text-gray-400">
+                      Start by creating a project or inviting team members
+                    </p>
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
           </div>
@@ -223,22 +373,68 @@ export default function DashboardPage() {
                 <CardDescription>Common tasks and shortcuts</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create New Project
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  Invite Team Member
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Workspace Settings
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  View Analytics
-                </Button>
+                <NewProjectModal
+                  trigger={
+                    <Button variant="outline" className="w-full justify-start">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Project
+                    </Button>
+                  }
+                />
+
+                <InviteTeamModal />
+
+                <Link href="/workspace-settings">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Workspace Settings
+                  </Button>
+                </Link>
+
+                <Link href="/analytics">
+                  <Button variant="outline" className="w-full justify-start">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    View Analytics
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Project Templates Preview */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Project Templates</CardTitle>
+                <CardDescription>
+                  Quick start with pre-built templates
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
+                    <FolderPlus className="h-6 w-6 text-gray-600 mx-auto mb-1" />
+                    <p className="text-xs font-medium">Blank</p>
+                  </div>
+                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
+                    <Megaphone className="h-6 w-6 text-orange-600 mx-auto mb-1" />
+                    <p className="text-xs font-medium">Marketing</p>
+                  </div>
+                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
+                    <Code className="h-6 w-6 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs font-medium">Development</p>
+                  </div>
+                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
+                    <PartyPopper className="h-6 w-6 text-purple-600 mx-auto mb-1" />
+                    <p className="text-xs font-medium">Events</p>
+                  </div>
+                </div>
+                <NewProjectModal
+                  trigger={
+                    <Button variant="outline" className="w-full text-sm">
+                      <Plus className="h-3 w-3 mr-2" />
+                      Create from Template
+                    </Button>
+                  }
+                />
               </CardContent>
             </Card>
 
@@ -259,7 +455,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Team members</span>
-                      <span>8 / 25</span>
+                      <span>{stats.teamMembers} / 25</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Storage used</span>
@@ -267,12 +463,14 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Next billing</span>
-                      <span>July 15, 2025</span>
+                      <span>June 15, 2025</span>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full">
-                    Manage Subscription
-                  </Button>
+                  <Link href="/subscription">
+                    <Button variant="outline" className="w-full">
+                      Manage Subscription
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
