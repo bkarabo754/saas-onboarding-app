@@ -29,6 +29,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { NotificationDropdown } from '@/components/ui/notification-dropdown';
+import { UserAvatarDropdown } from '@/components/ui/user-avatar-dropdown';
 import { NewProjectModal } from '@/components/modals/new-project-modal';
 import { InviteTeamModal } from '@/components/modals/invite-team-modal';
 import Link from 'next/link';
@@ -201,9 +202,10 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
             <NotificationDropdown />
             <NewProjectModal />
+            <UserAvatarDropdown />
           </div>
         </div>
 
@@ -463,7 +465,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Next billing</span>
-                      <span>June 15, 2025</span>
+                      <span>Jan 15, 2024</span>
                     </div>
                   </div>
                   <Link href="/subscription">
