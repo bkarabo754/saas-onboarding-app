@@ -56,6 +56,8 @@ import {
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { CheckoutButton } from '@/components/ui/checkout-button';
+import jsPDF from 'jspdf';
 
 const PLANS = [
   {
@@ -142,45 +144,6 @@ const PLANS = [
   },
 ];
 
-const BILLING_HISTORY = [
-  {
-    id: 'inv_001',
-    date: '2024-01-15',
-    amount: 79,
-    status: 'paid',
-    plan: 'Professional',
-    period: 'Jan 15 - March 15, 2025',
-    invoiceUrl: '#',
-  },
-  {
-    id: 'inv_002',
-    date: '2023-12-15',
-    amount: 79,
-    status: 'paid',
-    plan: 'Professional',
-    period: 'Dec 15 - Jan 15, 2025',
-    invoiceUrl: '#',
-  },
-  {
-    id: 'inv_003',
-    date: '2023-11-15',
-    amount: 79,
-    status: 'paid',
-    plan: 'Professional',
-    period: 'Sep 9 - May 02, 2025',
-    invoiceUrl: '#',
-  },
-  {
-    id: 'inv_004',
-    date: '2023-10-15',
-    amount: 29,
-    status: 'paid',
-    plan: 'Starter',
-    period: 'April 26 - Nov 15, 2024',
-    invoiceUrl: '#',
-  },
-];
-
 export default function SubscriptionPage() {
   const { user } = useUser();
   const searchParams = useSearchParams();
@@ -188,15 +151,19 @@ export default function SubscriptionPage() {
   const [currentPlan, setCurrentPlan] = useState('professional');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [billingHistory, setBillingHistory] = useState<any[]>([]);
+
   const [planDetails, setPlanDetails] = useState({
     teamMembers: 8,
-    nextBilling: '2025-02-15',
+    nextBilling: '2025-07-15',
     paymentMethod: '**** 4242',
     cardExpiry: '12/25',
   });
+
   const [paymentDetails, setPaymentDetails] = useState({
     cardNumber: '',
     expiryDate: '',
@@ -205,25 +172,95 @@ export default function SubscriptionPage() {
     billingAddress: '',
     city: '',
     zipCode: '',
-    country: 'US',
+    country: 'ZA',
   });
 
-  // Handle success/cancel from Stripe
+  // Load billing history from localStorage
+  useEffect(() => {
+    const storedBilling = JSON.parse(
+      localStorage.getItem('billingHistory') || '[]'
+    );
+    if (storedBilling.length === 0) {
+      // Set default billing history if none exists
+      const defaultBilling = [
+        {
+          id: 'inv_001',
+          date: '2024-01-15',
+          amount: 79,
+          status: 'paid',
+          plan: 'Professional',
+          period: 'Jan 15 - Feb 15, 2024',
+          invoiceUrl: '#',
+          paymentMethod: '**** 4242',
+          transactionId: 'pi_demo_123456',
+        },
+        {
+          id: 'inv_002',
+          date: '2023-12-15',
+          amount: 79,
+          status: 'paid',
+          plan: 'Professional',
+          period: 'Dec 15 - Jan 15, 2024',
+          invoiceUrl: '#',
+          paymentMethod: '**** 4242',
+          transactionId: 'pi_demo_123455',
+        },
+      ];
+      setBillingHistory(defaultBilling);
+      localStorage.setItem('billingHistory', JSON.stringify(defaultBilling));
+    } else {
+      setBillingHistory(storedBilling);
+    }
+  }, []);
+
+  // Handle success/cancel from checkout
   useEffect(() => {
     const success = searchParams.get('success');
     const canceled = searchParams.get('canceled');
     const plan = searchParams.get('plan');
+    const sessionId = searchParams.get('session_id');
 
     if (success && plan) {
       setCurrentPlan(plan);
-      toast.success(`Successfully upgraded to ${plan} plan!`);
+
+      // Add billing entry for successful payment (except free plan)
+      if (plan !== 'free') {
+        const selectedPlanData = PLANS.find((p) => p.id === plan);
+        if (selectedPlanData) {
+          const newBillingEntry = {
+            id: `inv_${Date.now()}`,
+            date: new Date().toISOString().split('T')[0],
+            amount: selectedPlanData.price,
+            status: 'paid',
+            plan: selectedPlanData.name,
+            period: `${new Date().toLocaleDateString()} - ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}`,
+            invoiceUrl: '#',
+            paymentMethod: '**** 4242',
+            transactionId: sessionId || `pi_demo_${Date.now()}`,
+          };
+
+          const existingBilling = JSON.parse(
+            localStorage.getItem('billingHistory') || '[]'
+          );
+          const updatedBilling = [newBillingEntry, ...existingBilling];
+          setBillingHistory(updatedBilling);
+          localStorage.setItem(
+            'billingHistory',
+            JSON.stringify(updatedBilling)
+          );
+        }
+      }
+
+      toast.success(
+        `Successfully ${plan === 'free' ? 'activated' : 'upgraded to'} ${PLANS.find((p) => p.id === plan)?.name} plan!`
+      );
 
       // Add notification
       const notification = {
         id: Date.now().toString(),
         type: 'subscription',
-        title: 'Plan Upgraded',
-        message: `Your subscription has been upgraded to the ${plan} plan`,
+        title: plan === 'free' ? 'Free Plan Activated' : 'Plan Upgraded',
+        message: `Your subscription has been ${plan === 'free' ? 'activated' : 'upgraded'} to the ${PLANS.find((p) => p.id === plan)?.name} plan`,
         timestamp: new Date(),
         read: false,
         link: '/subscription',
@@ -246,62 +283,60 @@ export default function SubscriptionPage() {
   const handlePlanChange = async (planId: string) => {
     setIsLoading(true);
     try {
-      if (planId === 'free') {
-        // Handle downgrade to free
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setCurrentPlan('free');
-        toast.success('Successfully downgraded to Free plan!');
+      const selectedPlanData = PLANS.find((p) => p.id === planId);
+      const currentPlanData = PLANS.find((p) => p.id === currentPlan);
 
-        // Add notification
-        const notification = {
-          id: Date.now().toString(),
-          type: 'subscription',
-          title: 'Plan Downgraded',
-          message: 'Your subscription has been downgraded to the Free plan',
-          timestamp: new Date(),
-          read: false,
-          link: '/subscription',
-        };
-
-        const existingNotifications = JSON.parse(
-          localStorage.getItem('notifications') || '[]'
-        );
-        localStorage.setItem(
-          'notifications',
-          JSON.stringify([notification, ...existingNotifications])
-        );
-      } else {
-        // For demo purposes, simulate successful upgrade without Stripe
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        setCurrentPlan(planId);
-
-        const planName = PLANS.find((p) => p.id === planId)?.name;
-        toast.success(`Successfully upgraded to ${planName} plan!`);
-
-        // Add notification
-        const notification = {
-          id: Date.now().toString(),
-          type: 'subscription',
-          title: 'Plan Upgraded',
-          message: `Your subscription has been upgraded to the ${planName} plan`,
-          timestamp: new Date(),
-          read: false,
-          link: '/subscription',
-        };
-
-        const existingNotifications = JSON.parse(
-          localStorage.getItem('notifications') || '[]'
-        );
-        localStorage.setItem(
-          'notifications',
-          JSON.stringify([notification, ...existingNotifications])
-        );
+      if (!selectedPlanData || !currentPlanData) {
+        throw new Error('Invalid plan selection');
       }
+
+      // Simulate plan change
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setCurrentPlan(planId);
+
+      const planName = selectedPlanData.name;
+      const isUpgrade = selectedPlanData.price > currentPlanData.price;
+      const isDowngrade = selectedPlanData.price < currentPlanData.price;
+
+      let message = '';
+      if (isUpgrade) {
+        message = `Successfully upgraded to ${planName} plan!`;
+      } else if (isDowngrade) {
+        message = `Successfully downgraded to ${planName} plan!`;
+      } else {
+        message = `Successfully switched to ${planName} plan!`;
+      }
+
+      toast.success(message);
+
+      // Add notification
+      const notification = {
+        id: Date.now().toString(),
+        type: 'subscription',
+        title: isUpgrade
+          ? 'Plan Upgraded'
+          : isDowngrade
+            ? 'Plan Downgraded'
+            : 'Plan Changed',
+        message: `Your subscription has been ${isUpgrade ? 'upgraded' : isDowngrade ? 'downgraded' : 'changed'} to the ${planName} plan`,
+        timestamp: new Date(),
+        read: false,
+        link: '/subscription',
+      };
+
+      const existingNotifications = JSON.parse(
+        localStorage.getItem('notifications') || '[]'
+      );
+      localStorage.setItem(
+        'notifications',
+        JSON.stringify([notification, ...existingNotifications])
+      );
     } catch (error) {
       toast.error('Failed to change plan');
     } finally {
       setIsLoading(false);
       setShowUpgradeModal(false);
+      setShowDowngradeModal(false);
     }
   };
 
@@ -439,7 +474,7 @@ export default function SubscriptionPage() {
         billingAddress: '',
         city: '',
         zipCode: '',
-        country: 'US',
+        country: 'ZA',
       });
     } catch (error) {
       toast.error('Failed to update payment method');
@@ -448,36 +483,105 @@ export default function SubscriptionPage() {
     }
   };
 
-  const downloadInvoice = async (invoiceId: string) => {
+  const downloadInvoice = async (invoice: any) => {
     try {
-      const invoice = BILLING_HISTORY.find((inv) => inv.id === invoiceId);
-      if (invoice) {
-        // Create a simple PDF-like content
-        const pdfContent = `
-INVOICE ${invoiceId}
-=====================================
+      // Create PDF document
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      let yPosition = 30;
 
-Date: ${invoice.date}
-Plan: ${invoice.plan}
-Period: ${invoice.period}
-Amount: R${invoice.amount}
-Status: ${invoice.status.toUpperCase()}
+      // Header
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('INVOICE', margin, yPosition);
 
-Thank you for your business!
-        `;
+      // Invoice details
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      yPosition += 20;
+      pdf.text(`Invoice #: ${invoice.id}`, margin, yPosition);
+      yPosition += 10;
+      pdf.text(
+        `Date: ${new Date(invoice.date).toLocaleDateString()}`,
+        margin,
+        yPosition
+      );
+      yPosition += 10;
+      pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, yPosition);
 
-        const blob = new Blob([pdfContent], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${invoiceId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success('Invoice downloaded successfully');
-      }
+      // Company info (right side)
+      pdf.text('Your Company Name', pageWidth - 80, 30);
+      pdf.text('123 Business Street', pageWidth - 80, 40);
+      pdf.text('City, State 12345', pageWidth - 80, 50);
+      pdf.text('contact@company.com', pageWidth - 80, 60);
+
+      // Bill to
+      yPosition += 30;
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Bill To:', margin, yPosition);
+      pdf.setFont('helvetica', 'normal');
+      yPosition += 10;
+      pdf.text(user?.fullName || 'Customer Name', margin, yPosition);
+      yPosition += 10;
+      pdf.text(
+        user?.emailAddresses[0]?.emailAddress || 'customer@email.com',
+        margin,
+        yPosition
+      );
+
+      // Invoice items
+      yPosition += 30;
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Description', margin, yPosition);
+      pdf.text('Amount', pageWidth - 60, yPosition);
+
+      // Line
+      yPosition += 5;
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+
+      // Item
+      yPosition += 15;
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${invoice.plan} Plan Subscription`, margin, yPosition);
+      pdf.text(`R${invoice.amount.toFixed(2)}`, pageWidth - 60, yPosition);
+
+      pdf.text(`Billing Period: ${invoice.period}`, margin, yPosition + 10);
+
+      // Total
+      yPosition += 30;
+      pdf.line(pageWidth - 100, yPosition, pageWidth - margin, yPosition);
+      yPosition += 15;
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Total:', pageWidth - 80, yPosition);
+      pdf.text(`R${invoice.amount.toFixed(2)}`, pageWidth - 60, yPosition);
+
+      // Payment info
+      yPosition += 30;
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Payment Method:', margin, yPosition);
+      pdf.text(invoice.paymentMethod || '**** 4242', margin + 50, yPosition);
+      yPosition += 10;
+      pdf.text('Transaction ID:', margin, yPosition);
+      pdf.text(invoice.transactionId || 'N/A', margin + 50, yPosition);
+
+      // Footer
+      yPosition = pdf.internal.pageSize.getHeight() - 30;
+      pdf.setFontSize(10);
+      pdf.text('Thank you for your business!', margin, yPosition);
+      pdf.text(
+        `Generated on ${new Date().toLocaleString()}`,
+        pageWidth - 100,
+        yPosition
+      );
+
+      // Save the PDF
+      const fileName = `invoice-${invoice.id}.pdf`;
+      pdf.save(fileName);
+
+      toast.success('Invoice downloaded successfully');
     } catch (error) {
+      console.error('Error generating PDF:', error);
       toast.error('Failed to download invoice');
     }
   };
@@ -509,6 +613,18 @@ Thank you for your business!
 
   // Get current plan data and ensure it updates when currentPlan changes
   const currentPlanData = PLANS.find((plan) => plan.id === currentPlan);
+
+  // Get available upgrade plans (higher price than current)
+  const getUpgradePlans = () => {
+    const currentPrice = currentPlanData?.price || 0;
+    return PLANS.filter((plan) => plan.price > currentPrice);
+  };
+
+  // Get available downgrade plans (lower price than current)
+  const getDowngradePlans = () => {
+    const currentPrice = currentPlanData?.price || 0;
+    return PLANS.filter((plan) => plan.price < currentPrice);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -672,11 +788,8 @@ Thank you for your business!
                         <Button
                           variant="outline"
                           className="flex-1"
-                          onClick={() => {
-                            setSelectedPlan('enterprise');
-                            setShowUpgradeModal(true);
-                          }}
-                          disabled={currentPlan === 'enterprise'}
+                          onClick={() => setShowUpgradeModal(true)}
+                          disabled={getUpgradePlans().length === 0}
                         >
                           <ArrowUpCircle className="h-4 w-4 mr-2" />
                           Upgrade Plan
@@ -684,11 +797,8 @@ Thank you for your business!
                         <Button
                           variant="outline"
                           className="flex-1"
-                          onClick={() => {
-                            setSelectedPlan('free');
-                            setShowUpgradeModal(true);
-                          }}
-                          disabled={currentPlan === 'free'}
+                          onClick={() => setShowDowngradeModal(true)}
+                          disabled={getDowngradePlans().length === 0}
                         >
                           <ArrowDownCircle className="h-4 w-4 mr-2" />
                           Downgrade Plan
@@ -843,23 +953,21 @@ Thank you for your business!
                       ))}
                     </ul>
 
-                    <Button
+                    <CheckoutButton
+                      planId={plan.id}
+                      planName={plan.name}
+                      price={plan.price}
                       className={`w-full ${
                         currentPlan === plan.id
                           ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                           : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
                       }`}
-                      disabled={currentPlan === plan.id || isLoading}
-                      onClick={() => {
-                        setSelectedPlan(plan.id);
-                        setShowUpgradeModal(true);
-                      }}
+                      variant={currentPlan === plan.id ? 'outline' : 'default'}
                     >
-                      {isLoading && (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      )}
-                      {currentPlan === plan.id ? 'Current Plan' : 'Select Plan'}
-                    </Button>
+                      {currentPlan === plan.id
+                        ? 'Current Plan'
+                        : `Subscribe to ${plan.name}`}
+                    </CheckoutButton>
                   </CardContent>
                 </Card>
               ))}
@@ -903,7 +1011,7 @@ Thank you for your business!
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {BILLING_HISTORY.map((invoice) => (
+                  {billingHistory.map((invoice) => (
                     <div
                       key={invoice.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -938,7 +1046,7 @@ Thank you for your business!
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => downloadInvoice(invoice.id)}
+                          onClick={() => downloadInvoice(invoice)}
                         >
                           <Download className="h-4 w-4 mr-2" />
                           Download PDF
@@ -1121,46 +1229,57 @@ Thank you for your business!
           </DialogContent>
         </Dialog>
 
-        {/* Upgrade/Downgrade Modal */}
+        {/* Upgrade Modal */}
         <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                {selectedPlan === 'free' ? 'Downgrade Plan' : 'Upgrade Plan'}
+                <ArrowUpCircle className="h-5 w-5 text-green-600" />
+                Upgrade Your Plan
               </DialogTitle>
               <DialogDescription>
-                {selectedPlan === 'free'
-                  ? 'Downgrade to the Free plan and lose access to premium features'
-                  : `Upgrade to ${PLANS.find((p) => p.id === selectedPlan)?.name} plan for enhanced features`}
+                Choose a higher tier plan to unlock more features and
+                capabilities
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
-              {selectedPlan && (
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-medium capitalize">
-                      {PLANS.find((p) => p.id === selectedPlan)?.name} Plan
-                    </h4>
-                    <span className="text-2xl font-bold">
-                      R{PLANS.find((p) => p.id === selectedPlan)?.price}/month
-                    </span>
-                  </div>
-                  <ul className="space-y-2">
-                    {PLANS.find((p) => p.id === selectedPlan)?.features.map(
-                      (feature, index) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
+              {getUpgradePlans().map((plan) => (
+                <Card
+                  key={plan.id}
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    selectedPlan === plan.id
+                      ? 'ring-2 ring-green-500 bg-green-50'
+                      : ''
+                  }`}
+                  onClick={() => setSelectedPlan(plan.id)}
+                >
+                  <CardHeader className="text-center pb-4">
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <div className="mt-2">
+                      <span className="text-3xl font-bold">R{plan.price}</span>
+                      <span className="text-gray-500">/month</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {plan.features.slice(0, 4).map((feature, index) => (
                         <li
                           key={index}
                           className="flex items-center gap-2 text-sm"
                         >
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-3 w-3 text-green-600" />
                           {feature}
                         </li>
-                      )
-                    )}
-                  </ul>
-                </div>
-              )}
+                      ))}
+                      {plan.features.length > 4 && (
+                        <li className="text-xs text-gray-500">
+                          +{plan.features.length - 4} more features
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
             <DialogFooter>
               <Button
@@ -1170,16 +1289,108 @@ Thank you for your business!
                 Cancel
               </Button>
               <Button
-                onClick={() => handlePlanChange(selectedPlan)}
-                disabled={isLoading}
-                className={
-                  selectedPlan === 'free'
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-                }
+                onClick={() => selectedPlan && handlePlanChange(selectedPlan)}
+                disabled={!selectedPlan || isLoading}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
               >
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {selectedPlan === 'free' ? 'Downgrade to Free' : 'Upgrade Plan'}
+                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                Upgrade to{' '}
+                {selectedPlan && PLANS.find((p) => p.id === selectedPlan)?.name}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Downgrade Modal */}
+        <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
+          <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ArrowDownCircle className="h-5 w-5 text-orange-600" />
+                Downgrade Your Plan
+              </DialogTitle>
+              <DialogDescription>
+                Choose a lower tier plan. Note that some features may become
+                unavailable.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
+              {getDowngradePlans().map((plan) => (
+                <Card
+                  key={plan.id}
+                  className={`cursor-pointer transition-all hover:shadow-lg ${
+                    selectedPlan === plan.id
+                      ? 'ring-2 ring-orange-500 bg-orange-50'
+                      : ''
+                  }`}
+                  onClick={() => setSelectedPlan(plan.id)}
+                >
+                  <CardHeader className="text-center pb-4">
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <div className="mt-2">
+                      <span className="text-3xl font-bold">R{plan.price}</span>
+                      <span className="text-gray-500">/month</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {plan.features.slice(0, 4).map((feature, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                          {feature}
+                        </li>
+                      ))}
+                      {plan.features.length > 4 && (
+                        <li className="text-xs text-gray-500">
+                          +{plan.features.length - 4} more features
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {selectedPlan && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-800 mb-2">
+                  Important Notice:
+                </h4>
+                <ul className="text-sm text-yellow-700 space-y-1">
+                  <li>
+                    • Your downgrade will take effect at the end of your current
+                    billing cycle
+                  </li>
+                  <li>• You'll keep access to current features until then</li>
+                  <li>
+                    • Some data may become inaccessible if it exceeds new plan
+                    limits
+                  </li>
+                  <li>• You can upgrade again at any time</li>
+                </ul>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowDowngradeModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => selectedPlan && handlePlanChange(selectedPlan)}
+                disabled={!selectedPlan || isLoading}
+                className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <ArrowDownCircle className="h-4 w-4 mr-2" />
+                Downgrade to{' '}
+                {selectedPlan && PLANS.find((p) => p.id === selectedPlan)?.name}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1326,12 +1537,23 @@ Thank you for your business!
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="ZA">South Africa</SelectItem>
                       <SelectItem value="US">United States</SelectItem>
                       <SelectItem value="CA">Canada</SelectItem>
                       <SelectItem value="GB">United Kingdom</SelectItem>
                       <SelectItem value="AU">Australia</SelectItem>
                       <SelectItem value="DE">Germany</SelectItem>
                       <SelectItem value="FR">France</SelectItem>
+                      <SelectItem value="IN">India</SelectItem>
+                      <SelectItem value="JP">Japan</SelectItem>
+                      <SelectItem value="BR">Brazil</SelectItem>
+                      <SelectItem value="IT">Italy</SelectItem>
+                      <SelectItem value="ES">Spain</SelectItem>
+                      <SelectItem value="MX">Mexico</SelectItem>
+                      <SelectItem value="SG">Singapore</SelectItem>
+                      <SelectItem value="NL">Netherlands</SelectItem>
+                      <SelectItem value="SE">Sweden</SelectItem>
+                      <SelectItem value="CH">Switzerland</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

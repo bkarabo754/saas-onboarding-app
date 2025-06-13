@@ -1,18 +1,23 @@
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
+// Make Stripe optional for demo purposes
+let stripe: Stripe | null = null;
+
+if (process.env.STRIPE_SECRET_KEY) {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2025-05-28.basil',
+  });
+} else {
+  console.warn('STRIPE_SECRET_KEY not found - running in demo mode');
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2025-05-28.basil',
-});
+export { stripe };
 
 export const PRICING_PLANS = {
   free: {
     name: 'Free',
     price: 0,
-    priceId: null,
+    priceId: 'price_free', // This would be a special case
     features: [
       'Up to 2 team members',
       'Basic analytics',

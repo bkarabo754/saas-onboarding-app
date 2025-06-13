@@ -32,7 +32,9 @@ import { NotificationDropdown } from '@/components/ui/notification-dropdown';
 import { UserAvatarDropdown } from '@/components/ui/user-avatar-dropdown';
 import { NewProjectModal } from '@/components/modals/new-project-modal';
 import { InviteTeamModal } from '@/components/modals/invite-team-modal';
+import { toast } from 'sonner';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface ActivityItem {
   id: string;
@@ -51,8 +53,91 @@ interface ActivityItem {
   color?: string;
 }
 
+interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ComponentType<any>;
+  color: string;
+  category: string;
+  tasks: string[];
+}
+
+const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: 'blank',
+    name: 'Blank Project',
+    description: 'Start from scratch with a clean slate',
+    icon: FolderPlus,
+    color: 'text-gray-600',
+    category: 'General',
+    tasks: [
+      'Set up project structure',
+      'Define project goals',
+      'Create initial documentation',
+      'Set up team permissions',
+    ],
+  },
+  {
+    id: 'marketing',
+    name: 'Marketing Campaign',
+    description: 'Pre-configured for marketing workflows',
+    icon: Megaphone,
+    color: 'text-orange-600',
+    category: 'Marketing',
+    tasks: [
+      'Define target audience and personas',
+      'Create campaign strategy and goals',
+      'Design marketing materials and assets',
+      'Set up analytics and tracking',
+      'Create content calendar',
+      'Launch campaign across channels',
+      'Monitor performance and optimize',
+      'Analyze results and create report',
+    ],
+  },
+  {
+    id: 'development',
+    name: 'Software Development',
+    description: 'Perfect for development teams',
+    icon: Code,
+    color: 'text-blue-600',
+    category: 'Development',
+    tasks: [
+      'Set up development environment',
+      'Create project architecture and design',
+      'Set up version control and CI/CD',
+      'Implement core features and functionality',
+      'Write comprehensive unit tests',
+      'Conduct code review and QA testing',
+      'Deploy to staging environment',
+    ],
+  },
+  {
+    id: 'event',
+    name: 'Event Planning',
+    description: 'Organize events and manage timelines',
+    icon: PartyPopper,
+    color: 'text-purple-600',
+    category: 'Events',
+    tasks: [
+      'Define event objectives and scope',
+      'Create detailed event timeline',
+      'Research and book venue',
+      'Coordinate with vendors and suppliers',
+      'Create and send invitations',
+      'Manage RSVPs and attendee list',
+      'Coordinate day-of logistics',
+      'Execute event and manage on-site',
+      'Collect feedback and follow up',
+      'Create post-event report and analysis',
+    ],
+  },
+];
+
 export default function DashboardPage() {
   const { user } = useUser();
+  const router = useRouter();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [stats, setStats] = useState({
     totalProjects: 12,
@@ -60,6 +145,7 @@ export default function DashboardPage() {
     activeTasks: 24,
     efficiency: 95,
   });
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   // Load activity from localStorage and listen for changes
   useEffect(() => {
@@ -185,6 +271,86 @@ export default function DashboardPage() {
         return 'bg-yellow-100';
       default:
         return 'bg-gray-100';
+    }
+  };
+
+  const createProjectFromTemplate = async (template: ProjectTemplate) => {
+    setIsCreatingProject(true);
+
+    try {
+      // Simulate project creation
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const projectData = {
+        id: Date.now().toString(),
+        name: `${template.name} Project`,
+        description: `${template.description} - Created from template`,
+        template: template.id,
+        templateName: template.name,
+        tasks: template.tasks,
+        createdAt: new Date().toISOString(),
+        status: 'active',
+        progress: 0,
+        category: template.category,
+        priority: 'medium',
+        dueDate: '',
+        teamMembers: [],
+      };
+
+      // Store project
+      const existingProjects = JSON.parse(
+        localStorage.getItem('projects') || '[]'
+      );
+      localStorage.setItem(
+        'projects',
+        JSON.stringify([projectData, ...existingProjects])
+      );
+
+      // Add notification
+      const notification = {
+        id: Date.now().toString(),
+        type: 'project',
+        title: 'Project Created from Template',
+        message: `"${projectData.name}" created with ${template.tasks.length} tasks from ${template.name} template`,
+        timestamp: new Date(),
+        read: false,
+        link: '/projects',
+      };
+
+      const existingNotifications = JSON.parse(
+        localStorage.getItem('notifications') || '[]'
+      );
+      localStorage.setItem(
+        'notifications',
+        JSON.stringify([notification, ...existingNotifications])
+      );
+
+      // Trigger storage event for same-tab updates
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'notifications',
+          newValue: JSON.stringify([notification, ...existingNotifications]),
+        })
+      );
+
+      // Update stats
+      setStats((prev) => ({
+        ...prev,
+        totalProjects: prev.totalProjects + 1,
+      }));
+
+      toast.success(
+        `${template.name} project created successfully with ${template.tasks.length} tasks!`
+      );
+
+      // Navigate to projects page after a short delay
+      setTimeout(() => {
+        router.push('/projects');
+      }, 1000);
+    } catch (error) {
+      toast.error('Failed to create project from template');
+    } finally {
+      setIsCreatingProject(false);
     }
   };
 
@@ -394,7 +560,10 @@ export default function DashboardPage() {
                 </Link>
 
                 <Link href="/analytics">
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start mt-3"
+                  >
                     <BarChart3 className="h-4 w-4 mr-2" />
                     View Analytics
                   </Button>
@@ -402,7 +571,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Project Templates Preview */}
+            {/* Project Templates */}
             <Card className="border-0 shadow-lg">
               <CardHeader>
                 <CardTitle>Project Templates</CardTitle>
@@ -410,33 +579,58 @@ export default function DashboardPage() {
                   Quick start with pre-built templates
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
-                    <FolderPlus className="h-6 w-6 text-gray-600 mx-auto mb-1" />
-                    <p className="text-xs font-medium">Blank</p>
-                  </div>
-                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
-                    <Megaphone className="h-6 w-6 text-orange-600 mx-auto mb-1" />
-                    <p className="text-xs font-medium">Marketing</p>
-                  </div>
-                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
-                    <Code className="h-6 w-6 text-blue-600 mx-auto mb-1" />
-                    <p className="text-xs font-medium">Development</p>
-                  </div>
-                  <div className="p-3 border rounded-lg text-center hover:bg-gray-50 transition-colors">
-                    <PartyPopper className="h-6 w-6 text-purple-600 mx-auto mb-1" />
-                    <p className="text-xs font-medium">Events</p>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {PROJECT_TEMPLATES.map((template) => {
+                    const IconComponent = template.icon;
+                    return (
+                      <button
+                        key={template.id}
+                        onClick={() => createProjectFromTemplate(template)}
+                        disabled={isCreatingProject}
+                        className="p-4 border-2 rounded-lg text-center hover:bg-gray-50 hover:border-blue-300 transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed group"
+                      >
+                        <div className="flex flex-col items-center space-y-2">
+                          <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-blue-100 transition-colors">
+                            <IconComponent
+                              className={`h-6 w-6 ${template.color} group-hover:text-blue-600 transition-colors`}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {template.name}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {template.tasks.length} tasks
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-3 border-t">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-gray-900">
+                      Template Features:
+                    </h4>
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <span>Pre-configured task lists</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <span>Industry best practices</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <span>Ready-to-use workflows</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <NewProjectModal
-                  trigger={
-                    <Button variant="outline" className="w-full text-sm">
-                      <Plus className="h-3 w-3 mr-2" />
-                      Create from Template
-                    </Button>
-                  }
-                />
               </CardContent>
             </Card>
 
@@ -465,7 +659,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Next billing</span>
-                      <span>Jan 15, 2024</span>
+                      <span>July 15, 2025</span>
                     </div>
                   </div>
                   <Link href="/subscription">

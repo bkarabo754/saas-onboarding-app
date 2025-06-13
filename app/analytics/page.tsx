@@ -93,7 +93,7 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard">
+            <Link href="/dashboard" className="cursor-pointer">
               <Button variant="outline" size="sm">
                 ← Back to Dashboard
               </Button>
