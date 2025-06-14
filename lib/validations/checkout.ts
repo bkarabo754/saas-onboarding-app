@@ -134,7 +134,7 @@ export const checkoutFormSchema = z
 
     zipCode: z
       .string()
-      .min(5, 'ZIP code must be at least 5 characters')
+      .min(4, 'ZIP code must be at least 4 characters')
       .max(10, 'ZIP code must be less than 10 characters')
       .regex(/^[0-9A-Za-z\s-]+$/, 'Invalid ZIP code format')
       .optional()
@@ -193,7 +193,7 @@ export const getCardType = (cardNumber: string): string => {
 
   if (/^4/.test(cleaned)) return 'Visa';
   if (/^5[1-5]/.test(cleaned)) return 'Mastercard';
-  if (/^3[47]/.test(cleaned)) return 'American Express';
+  //   if (/^3[47]/.test(cleaned)) return 'American Express';
   if (/^6/.test(cleaned)) return 'Discover';
 
   return 'Unknown';
