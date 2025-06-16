@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { useSearchParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -10,8 +11,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
@@ -21,8 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -32,426 +33,234 @@ import {
 } from '@/components/ui/select';
 import {
   CreditCard,
-  Calendar,
-  Users,
-  HardDrive,
-  Zap,
   Crown,
-  Download,
-  Receipt,
-  AlertCircle,
-  CheckCircle,
+  Check,
   ArrowUpCircle,
   ArrowDownCircle,
-  Loader2,
-  Star,
+  Calendar,
+  DollarSign,
+  Users,
+  Zap,
   Shield,
-  Sparkles,
-  Edit,
-  Save,
-  X,
+  Download,
+  FileText,
+  Loader2,
   Lock,
-  Plus,
+  CheckCircle,
+  AlertCircle,
+  Star,
+  Info,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { CheckoutButton } from '@/components/ui/checkout-button';
-import jsPDF from 'jspdf';
+import { PRICING_PLANS } from '@/lib/stripe';
+import {
+  paymentMethodSchema,
+  type PaymentMethodFormData,
+  formatCardNumber,
+  formatExpiryDate,
+  formatCVV,
+  getCardType,
+} from '@/lib/validations/payment-method';
 
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    features: [
-      'Up to 2 team members',
-      'Basic analytics',
-      'Community support',
-      '1GB storage',
-      'Basic integrations',
-    ],
-    limits: {
-      teamMembers: 2,
-      storage: 1,
-      projects: 3,
-      apiCalls: 100,
-    },
-    badgeColor: 'bg-gray-100 text-gray-800',
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: 29,
-    features: [
-      'Up to 5 team members',
-      'Basic analytics',
-      'Email support',
-      '10GB storage',
-      'Basic integrations',
-    ],
-    limits: {
-      teamMembers: 5,
-      storage: 10,
-      projects: 10,
-      apiCalls: 1000,
-    },
-    badgeColor: 'bg-green-100 text-green-800',
-  },
-  {
-    id: 'professional',
-    name: 'Professional',
-    price: 79,
-    features: [
-      'Up to 25 team members',
-      'Advanced analytics',
-      'Priority support',
-      '100GB storage',
-      'API access',
-      'Custom integrations',
-      'Advanced reporting',
-    ],
-    popular: true,
-    limits: {
-      teamMembers: 25,
-      storage: 100,
-      projects: 50,
-      apiCalls: 10000,
-    },
-    badgeColor: 'bg-gradient-to-r from-blue-600 to-purple-600 text-white',
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 199,
-    features: [
-      'Unlimited team members',
-      'Enterprise analytics',
-      '24/7 phone support',
-      'Unlimited storage',
-      'Full API access',
-      'Custom integrations',
-      'Dedicated account manager',
-      'SLA guarantee',
-    ],
-    limits: {
-      teamMembers: 999,
-      storage: 999,
-      projects: 999,
-      apiCalls: 100000,
-    },
-    badgeColor: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white',
-  },
+const COUNTRIES = [
+  { code: 'ZA', name: 'South Africa' },
+  { code: 'US', name: 'United States' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'CH', name: 'Switzerland' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'SG', name: 'Singapore' },
 ];
+
+interface BillingHistoryItem {
+  id: string;
+  date: string;
+  amount: number;
+  status: 'paid' | 'pending' | 'failed';
+  plan: string;
+  period: string;
+  invoiceUrl: string;
+  paymentMethod?: string;
+  transactionId?: string;
+  cardType?: string;
+  billingAddress?: {
+    name: string;
+    email: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+}
 
 export default function SubscriptionPage() {
   const { user } = useUser();
   const searchParams = useSearchParams();
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null); // Track which plan is loading
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<
+    string | null
+  >(null); // Track which invoice is downloading
   const [isLoading, setIsLoading] = useState(false);
-  const [currentPlan, setCurrentPlan] = useState('professional');
-  const [showCancelModal, setShowCancelModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('');
-  const [isEditingDetails, setIsEditingDetails] = useState(false);
-  const [billingHistory, setBillingHistory] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [showCVVInfo, setShowCVVInfo] = useState(false);
 
-  const [planDetails, setPlanDetails] = useState({
-    teamMembers: 8,
-    nextBilling: '2025-07-15',
-    paymentMethod: '**** 4242',
-    cardExpiry: '12/25',
+  // Use ref to track if we've already processed the success URL
+  const hasProcessedSuccess = useRef(false);
+
+  // Initialize currentPlan from localStorage with fallback
+  const [currentPlan, setCurrentPlan] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('currentPlan') || 'professional';
+    }
+    return 'professional';
   });
 
-  const [paymentDetails, setPaymentDetails] = useState({
+  const [paymentDetails, setPaymentDetails] = useState<PaymentMethodFormData>({
+    cardholderName: '',
     cardNumber: '',
     expiryDate: '',
     cvv: '',
-    cardholderName: '',
     billingAddress: '',
     city: '',
     zipCode: '',
     country: 'ZA',
   });
 
-  // Load billing history from localStorage
-  useEffect(() => {
-    const storedBilling = JSON.parse(
-      localStorage.getItem('billingHistory') || '[]'
-    );
-    if (storedBilling.length === 0) {
-      // Set default billing history if none exists
-      const defaultBilling = [
-        {
-          id: 'inv_001',
-          date: '2024-01-15',
-          amount: 79,
-          status: 'paid',
-          plan: 'Professional',
-          period: 'Jan 15 - Feb 15, 2024',
-          invoiceUrl: '#',
-          paymentMethod: '**** 4242',
-          transactionId: 'pi_demo_123456',
-        },
-        {
-          id: 'inv_002',
-          date: '2023-12-15',
-          amount: 79,
-          status: 'paid',
-          plan: 'Professional',
-          period: 'Dec 15 - Jan 15, 2024',
-          invoiceUrl: '#',
-          paymentMethod: '**** 4242',
-          transactionId: 'pi_demo_123455',
-        },
-      ];
-      setBillingHistory(defaultBilling);
-      localStorage.setItem('billingHistory', JSON.stringify(defaultBilling));
-    } else {
-      setBillingHistory(storedBilling);
-    }
-  }, []);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
 
-  // Handle success/cancel from checkout
+  const [billingHistory] = useState<BillingHistoryItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      return JSON.parse(localStorage.getItem('billingHistory') || '[]');
+    }
+    return [];
+  });
+
+  // Handle URL parameters for successful payments - ONLY ONCE
   useEffect(() => {
     const success = searchParams.get('success');
-    const canceled = searchParams.get('canceled');
-    const plan = searchParams.get('plan');
-    const sessionId = searchParams.get('session_id');
+    const planFromUrl = searchParams.get('plan');
 
-    if (success && plan) {
-      setCurrentPlan(plan);
+    // Only process if we haven't already processed this success and both parameters exist
+    if (success === 'true' && planFromUrl && !hasProcessedSuccess.current) {
+      hasProcessedSuccess.current = true; // Mark as processed
 
-      // Add billing entry for successful payment (except free plan)
-      if (plan !== 'free') {
-        const selectedPlanData = PLANS.find((p) => p.id === plan);
-        if (selectedPlanData) {
-          const newBillingEntry = {
-            id: `inv_${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            amount: selectedPlanData.price,
-            status: 'paid',
-            plan: selectedPlanData.name,
-            period: `${new Date().toLocaleDateString()} - ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}`,
-            invoiceUrl: '#',
-            paymentMethod: '**** 4242',
-            transactionId: sessionId || `pi_demo_${Date.now()}`,
-          };
+      // Update current plan and persist to localStorage
+      setCurrentPlan(planFromUrl);
+      localStorage.setItem('currentPlan', planFromUrl);
 
-          const existingBilling = JSON.parse(
-            localStorage.getItem('billingHistory') || '[]'
-          );
-          const updatedBilling = [newBillingEntry, ...existingBilling];
-          setBillingHistory(updatedBilling);
-          localStorage.setItem(
-            'billingHistory',
-            JSON.stringify(updatedBilling)
-          );
-        }
-      }
+      const planName =
+        PRICING_PLANS[planFromUrl as keyof typeof PRICING_PLANS]?.name ||
+        planFromUrl;
+      toast.success(`Successfully upgraded to ${planName} plan!`);
 
-      toast.success(
-        `Successfully ${plan === 'free' ? 'activated' : 'upgraded to'} ${PLANS.find((p) => p.id === plan)?.name} plan!`
-      );
-
-      // Add notification
-      const notification = {
-        id: Date.now().toString(),
-        type: 'subscription',
-        title: plan === 'free' ? 'Free Plan Activated' : 'Plan Upgraded',
-        message: `Your subscription has been ${plan === 'free' ? 'activated' : 'upgraded'} to the ${PLANS.find((p) => p.id === plan)?.name} plan`,
-        timestamp: new Date(),
-        read: false,
-        link: '/subscription',
-      };
-
-      const existingNotifications = JSON.parse(
-        localStorage.getItem('notifications') || '[]'
-      );
-      localStorage.setItem(
-        'notifications',
-        JSON.stringify([notification, ...existingNotifications])
-      );
-    }
-
-    if (canceled) {
-      toast.error('Payment was canceled. Your plan remains unchanged.');
+      // Clean up URL parameters after processing
+      const url = new URL(window.location.href);
+      url.searchParams.delete('success');
+      url.searchParams.delete('plan');
+      window.history.replaceState({}, '', url.toString());
     }
   }, [searchParams]);
 
+  // Validate form in real-time
+  useEffect(() => {
+    try {
+      paymentMethodSchema.parse(paymentDetails);
+      setValidationErrors({});
+    } catch (error: any) {
+      const errors: Record<string, string> = {};
+      if (error.errors) {
+        error.errors.forEach((err: any) => {
+          if (err.path && err.path.length > 0) {
+            errors[err.path[0]] = err.message;
+          }
+        });
+      }
+      setValidationErrors(errors);
+    }
+  }, [paymentDetails]);
+
   const handlePlanChange = async (planId: string) => {
-    setIsLoading(true);
+    setLoadingPlanId(planId); // Set loading for this specific plan only
     try {
-      const selectedPlanData = PLANS.find((p) => p.id === planId);
-      const currentPlanData = PLANS.find((p) => p.id === currentPlan);
+      if (planId === 'free') {
+        // Handle free plan directly
+        setCurrentPlan(planId);
+        localStorage.setItem('currentPlan', planId);
 
-      if (!selectedPlanData || !currentPlanData) {
-        throw new Error('Invalid plan selection');
-      }
-
-      // Simulate plan change
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setCurrentPlan(planId);
-
-      const planName = selectedPlanData.name;
-      const isUpgrade = selectedPlanData.price > currentPlanData.price;
-      const isDowngrade = selectedPlanData.price < currentPlanData.price;
-
-      let message = '';
-      if (isUpgrade) {
-        message = `Successfully upgraded to ${planName} plan!`;
-      } else if (isDowngrade) {
-        message = `Successfully downgraded to ${planName} plan!`;
+        toast.success('Successfully downgraded to Free plan!');
+        setShowDowngradeModal(false);
+        setShowUpgradeModal(false);
+        setSelectedPlan('');
       } else {
-        message = `Successfully switched to ${planName} plan!`;
+        // For paid plans, redirect to checkout
+        const response = await fetch('/api/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planId,
+            successUrl: `${window.location.origin}/subscription?success=true&plan=${planId}`,
+            cancelUrl: `${window.location.origin}/subscription?canceled=true`,
+          }),
+        });
+
+        const { redirectUrl } = await response.json();
+
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+        }
       }
-
-      toast.success(message);
-
-      // Add notification
-      const notification = {
-        id: Date.now().toString(),
-        type: 'subscription',
-        title: isUpgrade
-          ? 'Plan Upgraded'
-          : isDowngrade
-            ? 'Plan Downgraded'
-            : 'Plan Changed',
-        message: `Your subscription has been ${isUpgrade ? 'upgraded' : isDowngrade ? 'downgraded' : 'changed'} to the ${planName} plan`,
-        timestamp: new Date(),
-        read: false,
-        link: '/subscription',
-      };
-
-      const existingNotifications = JSON.parse(
-        localStorage.getItem('notifications') || '[]'
-      );
-      localStorage.setItem(
-        'notifications',
-        JSON.stringify([notification, ...existingNotifications])
-      );
     } catch (error) {
-      toast.error('Failed to change plan');
+      toast.error('Failed to process plan change');
     } finally {
-      setIsLoading(false);
-      setShowUpgradeModal(false);
-      setShowDowngradeModal(false);
-    }
-  };
-
-  const handleCancelSubscription = async () => {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      setShowCancelModal(false);
-
-      // Add notification
-      const notification = {
-        id: Date.now().toString(),
-        type: 'subscription',
-        title: 'Subscription Cancelled',
-        message:
-          'Your subscription will be downgraded to Free plan at the end of billing cycle',
-        timestamp: new Date(),
-        read: false,
-        link: '/subscription',
-      };
-
-      const existingNotifications = JSON.parse(
-        localStorage.getItem('notifications') || '[]'
-      );
-      localStorage.setItem(
-        'notifications',
-        JSON.stringify([notification, ...existingNotifications])
-      );
-
-      toast.success(
-        'Subscription cancelled. You will be downgraded to Free plan at the end of your billing cycle.'
-      );
-    } catch (error) {
-      toast.error('Failed to cancel subscription');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUpdateDetails = async () => {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setIsEditingDetails(false);
-      toast.success('Plan details updated successfully!');
-
-      // Add notification
-      const notification = {
-        id: Date.now().toString(),
-        type: 'subscription',
-        title: 'Plan Details Updated',
-        message: 'Your subscription details have been updated successfully',
-        timestamp: new Date(),
-        read: false,
-        link: '/subscription',
-      };
-
-      const existingNotifications = JSON.parse(
-        localStorage.getItem('notifications') || '[]'
-      );
-      localStorage.setItem(
-        'notifications',
-        JSON.stringify([notification, ...existingNotifications])
-      );
-    } catch (error) {
-      toast.error('Failed to update details');
-    } finally {
-      setIsLoading(false);
+      setLoadingPlanId(null); // Clear loading state
     }
   };
 
   const handleUpdatePaymentMethod = async () => {
-    setIsLoading(true);
+    // Validate form
     try {
-      // Validate payment details
-      if (
-        !paymentDetails.cardNumber ||
-        !paymentDetails.expiryDate ||
-        !paymentDetails.cvv ||
-        !paymentDetails.cardholderName
-      ) {
-        toast.error('Please fill in all required payment details');
-        setIsLoading(false);
-        return;
-      }
+      paymentMethodSchema.parse(paymentDetails);
+    } catch (error: any) {
+      toast.error('Please fix the validation errors before submitting');
+      return;
+    }
 
-      // Validate expiry date format (MM/YY)
-      const expiryRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
-      if (!expiryRegex.test(paymentDetails.expiryDate)) {
-        toast.error('Please enter expiry date in MM/YY format');
-        setIsLoading(false);
-        return;
-      }
-
-      // Simulate payment method update
+    setIsPaymentLoading(true);
+    try {
+      // Simulate API call to update payment method
       await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Update the displayed payment method AND expiry date
-      const lastFour = paymentDetails.cardNumber.slice(-4);
-      setPlanDetails((prev) => ({
-        ...prev,
-        paymentMethod: `**** ${lastFour}`,
-        cardExpiry: paymentDetails.expiryDate,
-      }));
-
-      setShowPaymentModal(false);
-      toast.success('Payment method and expiry date updated successfully!');
 
       // Add notification
       const notification = {
         id: Date.now().toString(),
         type: 'billing',
         title: 'Payment Method Updated',
-        message: `Your payment method has been updated to card ending in ${lastFour} (expires ${paymentDetails.expiryDate})`,
+        message: `Payment method ending in ${paymentDetails.cardNumber.slice(-4)} has been updated successfully`,
         timestamp: new Date(),
         read: false,
         link: '/subscription',
@@ -465,12 +274,15 @@ export default function SubscriptionPage() {
         JSON.stringify([notification, ...existingNotifications])
       );
 
+      toast.success('Payment method updated successfully!');
+      setShowPaymentModal(false);
+
       // Reset form
       setPaymentDetails({
+        cardholderName: '',
         cardNumber: '',
         expiryDate: '',
         cvv: '',
-        cardholderName: '',
         billingAddress: '',
         city: '',
         zipCode: '',
@@ -479,467 +291,460 @@ export default function SubscriptionPage() {
     } catch (error) {
       toast.error('Failed to update payment method');
     } finally {
-      setIsLoading(false);
+      setIsPaymentLoading(false);
     }
   };
 
-  const downloadInvoice = async (invoice: any) => {
+  const handleDownloadInvoice = async (item: BillingHistoryItem) => {
+    setDownloadingInvoiceId(item.id);
+
     try {
-      // Create PDF document
+      // Simulate download delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // Create PDF invoice
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.getWidth();
       const margin = 20;
       let yPosition = 30;
 
-      // Header
+      // Helper function to add text
+      const addText = (text: string, x: number, y: number, options?: any) => {
+        pdf.text(text, x, y, options);
+        return y + 7;
+      };
+
+      // Header with company info
       pdf.setFontSize(24);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('INVOICE', margin, yPosition);
+      yPosition = addText('INVOICE', margin, yPosition);
 
-      // Invoice details
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
+      yPosition = addText('OnboardIQ', margin, yPosition + 10);
+      yPosition = addText('310 Boundary Rd', margin, yPosition);
+      yPosition = addText(
+        'North Riding AH, Roodepoort, 2169',
+        margin,
+        yPosition
+      );
+      yPosition = addText('support@onboardIQ.com', margin, yPosition);
+
+      // Invoice details (right side)
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Invoice #:', pageWidth - 80, 50);
+      pdf.text('Date:', pageWidth - 80, 60);
+      pdf.text('Due Date:', pageWidth - 80, 70);
+      pdf.text('Status:', pageWidth - 80, 80);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(item.id, pageWidth - 50, 50);
+      pdf.text(item.date, pageWidth - 50, 60);
+      pdf.text(item.date, pageWidth - 50, 70);
+      pdf.text(item.status.toUpperCase(), pageWidth - 50, 80);
+
+      yPosition = 100;
+
+      // Bill to section
+      pdf.setFont('helvetica', 'bold');
+      yPosition = addText('BILL TO:', margin, yPosition);
+      pdf.setFont('helvetica', 'normal');
+
+      if (item.billingAddress) {
+        yPosition = addText(item.billingAddress.name, margin, yPosition);
+        yPosition = addText(item.billingAddress.email, margin, yPosition);
+        yPosition = addText(item.billingAddress.address, margin, yPosition);
+        yPosition = addText(
+          `${item.billingAddress.city}, ${item.billingAddress.state} ${item.billingAddress.zipCode}`,
+          margin,
+          yPosition
+        );
+        yPosition = addText(item.billingAddress.country, margin, yPosition);
+      } else {
+        yPosition = addText(user?.fullName || 'Customer', margin, yPosition);
+        yPosition = addText(
+          user?.emailAddresses[0]?.emailAddress || 'customer@example.com',
+          margin,
+          yPosition
+        );
+      }
+
       yPosition += 20;
-      pdf.text(`Invoice #: ${invoice.id}`, margin, yPosition);
-      yPosition += 10;
-      pdf.text(
-        `Date: ${new Date(invoice.date).toLocaleDateString()}`,
-        margin,
-        yPosition
-      );
-      yPosition += 10;
-      pdf.text(`Status: ${invoice.status.toUpperCase()}`, margin, yPosition);
 
-      // Company info (right side)
-      pdf.text('Your Company Name', pageWidth - 80, 30);
-      pdf.text('123 Business Street', pageWidth - 80, 40);
-      pdf.text('City, State 12345', pageWidth - 80, 50);
-      pdf.text('contact@company.com', pageWidth - 80, 60);
-
-      // Bill to
-      yPosition += 30;
+      // Service details table
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Bill To:', margin, yPosition);
-      pdf.setFont('helvetica', 'normal');
-      yPosition += 10;
-      pdf.text(user?.fullName || 'Customer Name', margin, yPosition);
-      yPosition += 10;
-      pdf.text(
-        user?.emailAddresses[0]?.emailAddress || 'customer@email.com',
-        margin,
-        yPosition
-      );
+      yPosition = addText('DESCRIPTION', margin, yPosition);
+      pdf.text('PERIOD', margin + 80, yPosition - 7);
+      pdf.text('AMOUNT', pageWidth - 50, yPosition - 7);
 
-      // Invoice items
-      yPosition += 30;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Description', margin, yPosition);
-      pdf.text('Amount', pageWidth - 60, yPosition);
-
-      // Line
-      yPosition += 5;
+      // Table line
       pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-
-      // Item
-      yPosition += 15;
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`${invoice.plan} Plan Subscription`, margin, yPosition);
-      pdf.text(`R${invoice.amount.toFixed(2)}`, pageWidth - 60, yPosition);
-
-      pdf.text(`Billing Period: ${invoice.period}`, margin, yPosition + 10);
-
-      // Total
-      yPosition += 30;
-      pdf.line(pageWidth - 100, yPosition, pageWidth - margin, yPosition);
-      yPosition += 15;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Total:', pageWidth - 80, yPosition);
-      pdf.text(`R${invoice.amount.toFixed(2)}`, pageWidth - 60, yPosition);
-
-      // Payment info
-      yPosition += 30;
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Payment Method:', margin, yPosition);
-      pdf.text(invoice.paymentMethod || '**** 4242', margin + 50, yPosition);
       yPosition += 10;
-      pdf.text('Transaction ID:', margin, yPosition);
-      pdf.text(invoice.transactionId || 'N/A', margin + 50, yPosition);
+
+      pdf.setFont('helvetica', 'normal');
+      yPosition = addText(`${item.plan} Plan Subscription`, margin, yPosition);
+      pdf.text(item.period, margin + 80, yPosition - 7);
+      pdf.text(`R${item.amount.toFixed(2)}`, pageWidth - 50, yPosition - 7);
+
+      yPosition += 20;
+
+      // Totals
+      pdf.line(margin + 100, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+
+      const subtotal = item.amount / 1.08; // Assuming 8% tax
+      const tax = item.amount - subtotal;
+
+      pdf.text('Subtotal:', margin + 100, yPosition);
+      pdf.text(`R${subtotal.toFixed(2)}`, pageWidth - 50, yPosition);
+      yPosition += 10;
+
+      pdf.text('Tax (8%):', margin + 100, yPosition);
+      pdf.text(`R${tax.toFixed(2)}`, pageWidth - 50, yPosition);
+      yPosition += 10;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Total:', margin + 100, yPosition);
+      pdf.text(`R${item.amount.toFixed(2)}`, pageWidth - 50, yPosition);
+
+      yPosition += 30;
+
+      // Payment information
+      pdf.setFont('helvetica', 'bold');
+      yPosition = addText('PAYMENT INFORMATION', margin, yPosition);
+      pdf.setFont('helvetica', 'normal');
+
+      if (item.paymentMethod) {
+        yPosition = addText(
+          `Payment Method: ${item.paymentMethod}`,
+          margin,
+          yPosition
+        );
+      }
+      if (item.transactionId) {
+        yPosition = addText(
+          `Transaction ID: ${item.transactionId}`,
+          margin,
+          yPosition
+        );
+      }
+
+      yPosition += 20;
 
       // Footer
-      yPosition = pdf.internal.pageSize.getHeight() - 30;
       pdf.setFontSize(10);
-      pdf.text('Thank you for your business!', margin, yPosition);
-      pdf.text(
-        `Generated on ${new Date().toLocaleString()}`,
-        pageWidth - 100,
+      pdf.setFont('helvetica', 'italic');
+      yPosition = addText('Thank you for your business!', margin, yPosition);
+      yPosition = addText(
+        'For questions about this invoice, please contact support@saasplatform.com',
+        margin,
         yPosition
+      );
+
+      // Page footer
+      pdf.text(
+        'This is a computer-generated invoice.',
+        margin,
+        pdf.internal.pageSize.getHeight() - 20
+      );
+      pdf.text(
+        `Generated on ${new Date().toLocaleDateString()}`,
+        pageWidth - 80,
+        pdf.internal.pageSize.getHeight() - 20
       );
 
       // Save the PDF
-      const fileName = `invoice-${invoice.id}.pdf`;
+      const fileName = `invoice-${item.id}-${item.date}.pdf`;
       pdf.save(fileName);
 
-      toast.success('Invoice downloaded successfully');
+      toast.success('Invoice downloaded successfully!');
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('Error generating invoice:', error);
       toast.error('Failed to download invoice');
+    } finally {
+      setDownloadingInvoiceId(null);
     }
   };
 
-  // Format card number input with spaces
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-    const matches = v.match(/\d{4,16}/g);
-    const match = (matches && matches[0]) || '';
-    const parts = [];
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    if (parts.length) {
-      return parts.join(' ');
-    } else {
-      return v;
-    }
-  };
-
-  // Format expiry date input (MM/YY)
-  const formatExpiryDate = (value: string) => {
-    const v = value.replace(/\D/g, '');
-    if (v.length >= 2) {
-      return v.substring(0, 2) + '/' + v.substring(2, 4);
-    }
-    return v;
-  };
-
-  // Get current plan data and ensure it updates when currentPlan changes
-  const currentPlanData = PLANS.find((plan) => plan.id === currentPlan);
-
-  // Get available upgrade plans (higher price than current)
   const getUpgradePlans = () => {
-    const currentPrice = currentPlanData?.price || 0;
-    return PLANS.filter((plan) => plan.price > currentPrice);
+    const plans = Object.entries(PRICING_PLANS);
+    const currentPlanIndex = plans.findIndex(([key]) => key === currentPlan);
+    return plans
+      .slice(currentPlanIndex + 1)
+      .map(([key, plan]) => ({ id: key, ...plan }));
   };
 
-  // Get available downgrade plans (lower price than current)
   const getDowngradePlans = () => {
-    const currentPrice = currentPlanData?.price || 0;
-    return PLANS.filter((plan) => plan.price < currentPrice);
+    const plans = Object.entries(PRICING_PLANS);
+    const currentPlanIndex = plans.findIndex(([key]) => key === currentPlan);
+    return plans
+      .slice(0, currentPlanIndex)
+      .map(([key, plan]) => ({ id: key, ...plan }));
+  };
+
+  const currentPlanData =
+    PRICING_PLANS[currentPlan as keyof typeof PRICING_PLANS];
+  const cardType = getCardType(paymentDetails.cardNumber);
+
+  // Check if form is valid for enabling the button
+  const isFormValid = () => {
+    try {
+      paymentMethodSchema.parse(paymentDetails);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Handle formatted input changes
+  const handleCardNumberChange = (value: string) => {
+    const formatted = formatCardNumber(value);
+    setPaymentDetails((prev) => ({ ...prev, cardNumber: formatted }));
+  };
+
+  const handleExpiryDateChange = (value: string) => {
+    const formatted = formatExpiryDate(value);
+    setPaymentDetails((prev) => ({ ...prev, expiryDate: formatted }));
+  };
+
+  const handleCVVChange = (value: string) => {
+    const formatted = formatCVV(value);
+    setPaymentDetails((prev) => ({ ...prev, cvv: formatted }));
+  };
+
+  const updatePaymentDetail = (
+    field: keyof PaymentMethodFormData,
+    value: string
+  ) => {
+    setPaymentDetails((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
           <Link href="/dashboard">
             <Button variant="outline" size="sm">
               ← Back to Dashboard
             </Button>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <CreditCard className="h-8 w-8" />
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <Crown className="h-6 w-6 sm:h-8 sm:w-8" />
               Subscription Management
             </h1>
-            <p className="text-gray-600 mt-1">
-              Manage your subscription, billing, and usage
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
+              Manage your subscription plan and billing information
             </p>
           </div>
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="plans">Plans & Pricing</TabsTrigger>
-            <TabsTrigger value="billing">Billing History</TabsTrigger>
-            <TabsTrigger value="usage">Usage & Limits</TabsTrigger>
+            <TabsTrigger value="plans">Plans</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Current Plan */}
-              <Card className="lg:col-span-2 border-0 shadow-lg">
+              <Card className="border-0 shadow-lg">
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Crown className="h-5 w-5 text-yellow-600" />
-                        Current Plan
-                      </CardTitle>
-                      <CardDescription>
-                        Your active subscription details
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        className={
-                          currentPlanData?.badgeColor ||
-                          'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                        }
-                      >
-                        {currentPlanData?.name || 'Professional'}
-                      </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsEditingDetails(!isEditingDetails)}
-                      >
-                        {isEditingDetails ? (
-                          <X className="h-4 w-4" />
-                        ) : (
-                          <Edit className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Crown className="h-5 w-5" />
+                    Current Plan
+                  </CardTitle>
+                  <CardDescription>
+                    Your active subscription details
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Monthly Cost</p>
-                      <p className="text-2xl font-bold">
-                        R{currentPlanData?.price || 0}
+                      <h3 className="text-2xl font-bold">
+                        {currentPlanData?.name}
+                      </h3>
+                      <p className="text-gray-600">
+                        R{currentPlanData?.price}/month
                       </p>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Next Billing</p>
-                      {isEditingDetails ? (
-                        <Input
-                          type="date"
-                          value={planDetails.nextBilling}
-                          onChange={(e) =>
-                            setPlanDetails((prev) => ({
-                              ...prev,
-                              nextBilling: e.target.value,
-                            }))
-                          }
-                          className="mt-1"
-                        />
-                      ) : (
-                        <p className="text-lg font-medium">
-                          {new Date(
-                            planDetails.nextBilling
-                          ).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
+                    <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
+                      Active
+                    </Badge>
                   </div>
+
+                  <Separator />
 
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Team Members</span>
-                      {isEditingDetails ? (
-                        <Input
-                          type="number"
-                          value={planDetails.teamMembers}
-                          onChange={(e) =>
-                            setPlanDetails((prev) => ({
-                              ...prev,
-                              teamMembers: parseInt(e.target.value),
-                            }))
-                          }
-                          className="w-20"
-                          max={currentPlanData?.limits.teamMembers}
-                        />
-                      ) : (
-                        <span>
-                          {planDetails.teamMembers} /{' '}
-                          {currentPlanData?.limits.teamMembers}
-                        </span>
-                      )}
-                    </div>
-                    <Progress
-                      value={
-                        (planDetails.teamMembers /
-                          (currentPlanData?.limits.teamMembers || 1)) *
-                        100
-                      }
-                      className="h-2"
-                    />
-
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Storage Used</span>
-                      <span>24GB / {currentPlanData?.limits.storage}GB</span>
-                    </div>
-                    <Progress
-                      value={
-                        (24 / (currentPlanData?.limits.storage || 1)) * 100
-                      }
-                      className="h-2"
-                    />
+                    <h4 className="font-medium">Plan Features:</h4>
+                    <ul className="space-y-2">
+                      {currentPlanData?.features.map((feature, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
-                  <div className="flex gap-2 pt-4">
-                    {isEditingDetails ? (
+                  <Separator />
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {getUpgradePlans().length > 0 && (
                       <Button
-                        onClick={handleUpdateDetails}
-                        disabled={isLoading}
-                        className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                        onClick={() => setShowUpgradeModal(true)}
+                        className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 flex-1"
                       >
-                        {isLoading && (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        )}
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Changes
+                        <ArrowUpCircle className="h-4 w-4 mr-2" />
+                        Upgrade Plan
                       </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowUpgradeModal(true)}
-                          disabled={getUpgradePlans().length === 0}
-                        >
-                          <ArrowUpCircle className="h-4 w-4 mr-2" />
-                          Upgrade Plan
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setShowDowngradeModal(true)}
-                          disabled={getDowngradePlans().length === 0}
-                        >
-                          <ArrowDownCircle className="h-4 w-4 mr-2" />
-                          Downgrade Plan
-                        </Button>
-                      </>
+                    )}
+
+                    {getDowngradePlans().length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowDowngradeModal(true)}
+                        className="flex-1"
+                      >
+                        <ArrowDownCircle className="h-4 w-4 mr-2" />
+                        Downgrade Plan
+                      </Button>
                     )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Quick Stats */}
-              <div className="space-y-4">
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">
-                          This Month
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          R{currentPlanData?.price || 0}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-green-100 rounded-full">
-                        <CheckCircle className="h-6 w-6 text-green-600" />
-                      </div>
+              {/* Billing Information */}
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    Payment Method
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your payment information
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                    <CreditCard className="h-8 w-8 text-gray-600" />
+                    <div className="flex-1">
+                      <p className="font-medium">•••• •••• •••• 4242</p>
+                      <p className="text-sm text-gray-600">Expires 12/25</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Badge variant="outline">Visa</Badge>
+                  </div>
 
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">
-                          Annual Savings
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900">R190</p>
-                        <p className="text-xs text-gray-500">
-                          vs monthly billing
-                        </p>
-                      </div>
-                      <div className="p-3 bg-blue-100 rounded-full">
-                        <Calendar className="h-6 w-6 text-blue-600" />
-                      </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span>Next billing date:</span>
+                      <span className="font-medium">July 15, 2025</span>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">
-                          Status
-                        </p>
-                        <p className="text-lg font-bold text-green-600">
-                          {currentPlan === 'free' ? 'Free Plan' : 'Active'}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-green-100 rounded-full">
-                        <Zap className="h-6 w-6 text-green-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle>Payment Method</CardTitle>
-                <CardDescription>Your default payment method</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded">
-                      <CreditCard className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{planDetails.paymentMethod}</p>
-                      <p className="text-sm text-gray-600">
-                        Expires {planDetails.cardExpiry}
-                      </p>
+                    <div className="flex justify-between text-sm">
+                      <span>Billing amount:</span>
+                      <span className="font-medium">
+                        R{currentPlanData?.price}/month
+                      </span>
                     </div>
                   </div>
+
+                  <Separator />
+
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={() => setShowPaymentModal(true)}
+                    className="w-full"
                   >
-                    Update
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Update Payment Method
                   </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Usage Stats */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Usage Statistics</CardTitle>
+                <CardDescription>
+                  Your current usage across plan limits
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Team Members</span>
+                      <span>8 / 25</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full"
+                        style={{ width: '32%' }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Storage Used</span>
+                      <span>24GB / 100GB</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-green-600 h-2 rounded-full"
+                        style={{ width: '24%' }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>API Calls</span>
+                      <span>1.2K / 10K</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-purple-600 h-2 rounded-full"
+                        style={{ width: '12%' }}
+                      ></div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Plans & Pricing Tab */}
+          {/* Plans Tab */}
           <TabsContent value="plans" className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold mb-2">Choose Your Plan</h2>
-              <p className="text-gray-600">
-                Upgrade or downgrade your subscription anytime
-              </p>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {PLANS.map((plan) => (
+              {Object.entries(PRICING_PLANS).map(([planId, plan]) => (
                 <Card
-                  key={plan.id}
-                  className={`relative border-0 shadow-lg transition-all hover:shadow-xl hover:scale-105 ${
-                    currentPlan === plan.id ? 'ring-2 ring-blue-500' : ''
-                  } ${plan.popular ? 'border-purple-200' : ''}`}
+                  key={planId}
+                  className={`border-0 shadow-lg transition-all hover:shadow-xl ${
+                    currentPlan === planId ? 'ring-2 ring-blue-500' : ''
+                  }`}
                 >
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <Badge className="bg-gradient-to-r from-orange-500 to-red-500">
-                        Most Popular
-                      </Badge>
-                    </div>
-                  )}
-
-                  {currentPlan === plan.id && (
-                    <div className="absolute -top-3 right-4">
-                      <Badge className={plan.badgeColor}>Current Plan</Badge>
-                    </div>
-                  )}
-
                   <CardHeader className="text-center">
-                    <CardTitle className="text-2xl capitalize">
-                      {plan.name}
-                    </CardTitle>
-                    <div className="mt-2">
-                      <span className="text-4xl font-bold">R{plan.price}</span>
-                      <span className="text-gray-500">/month</span>
+                    {currentPlan === planId && (
+                      <Badge className="bg-blue-100 text-blue-800 mb-2 w-fit mx-auto">
+                        Current Plan
+                      </Badge>
+                    )}
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <div className="text-3xl font-bold">
+                      R{plan.price}
+                      <span className="text-sm font-normal text-gray-600">
+                        /month
+                      </span>
                     </div>
                   </CardHeader>
-
                   <CardContent className="space-y-4">
                     <ul className="space-y-2">
                       {plan.features.map((feature, index) => (
@@ -947,339 +752,153 @@ export default function SubscriptionPage() {
                           key={index}
                           className="flex items-center gap-2 text-sm"
                         >
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4 text-green-600" />
                           {feature}
                         </li>
                       ))}
                     </ul>
 
-                    <CheckoutButton
-                      planId={plan.id}
-                      planName={plan.name}
-                      price={plan.price}
-                      className={`w-full ${
-                        currentPlan === plan.id
-                          ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
-                      }`}
-                      variant={currentPlan === plan.id ? 'outline' : 'default'}
-                    >
-                      {currentPlan === plan.id
-                        ? 'Current Plan'
-                        : `Subscribe to ${plan.name}`}
-                    </CheckoutButton>
+                    {currentPlan !== planId && (
+                      <Button
+                        onClick={() => handlePlanChange(planId)}
+                        disabled={loadingPlanId === planId}
+                        className="w-full"
+                        // variant={planId === 'free' ? 'outline' : 'default'}
+                      >
+                        {loadingPlanId === planId && (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        )}
+                        {planId === 'free' ? 'Downgrade' : 'Upgrade'}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
-
-            {/* Cancel Subscription */}
-            <Card className="border-red-200">
-              <CardHeader>
-                <CardTitle className="text-red-700 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Cancel Subscription
-                </CardTitle>
-                <CardDescription>
-                  Cancel your subscription. You'll continue to have access until
-                  the end of your billing period.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowCancelModal(true)}
-                  disabled={isLoading || currentPlan === 'free'}
-                >
-                  {isLoading && (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  )}
-                  Cancel Subscription
-                </Button>
-              </CardContent>
-            </Card>
           </TabsContent>
 
-          {/* Billing History Tab */}
+          {/* Billing Tab */}
           <TabsContent value="billing" className="space-y-6">
             <Card className="border-0 shadow-lg">
               <CardHeader>
-                <CardTitle>Billing History</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Billing History
+                </CardTitle>
                 <CardDescription>
-                  Your payment history and invoices
+                  View and download your past invoices
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {billingHistory.map((invoice) => (
-                    <div
-                      key={invoice.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 bg-gray-100 rounded">
-                          <Receipt className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{invoice.plan} Plan</p>
-                          <p className="text-sm text-gray-600">
-                            {invoice.period}
-                          </p>
+                {billingHistory.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">
+                      No billing history available
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {billingHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-medium">{item.plan} Plan</h4>
+                            <Badge
+                              variant={
+                                item.status === 'paid'
+                                  ? 'default'
+                                  : item.status === 'pending'
+                                    ? 'secondary'
+                                    : 'destructive'
+                              }
+                            >
+                              {item.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600">{item.period}</p>
                           <p className="text-xs text-gray-500">
-                            {invoice.date}
+                            {item.paymentMethod && `${item.paymentMethod} • `}
+                            Transaction ID: {item.transactionId}
                           </p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="font-medium">R{invoice.amount}</p>
-                          <Badge
-                            className={
-                              invoice.status === 'paid'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                            }
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-medium">
+                              R{item.amount.toFixed(2)}
+                            </p>
+                            <p className="text-sm text-gray-600">{item.date}</p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadInvoice(item)}
+                            disabled={downloadingInvoiceId === item.id}
                           >
-                            {invoice.status}
-                          </Badge>
+                            {downloadingInvoiceId === item.id ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4 mr-2" />
+                            )}
+                            {downloadingInvoiceId === item.id
+                              ? 'Generating...'
+                              : 'Invoice'}
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadInvoice(invoice)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download PDF
-                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Usage & Limits Tab */}
-          <TabsContent value="usage" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Team Members
-                  </CardTitle>
-                  <CardDescription>Current team size and limit</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Used</span>
-                    <span className="font-medium">
-                      {planDetails.teamMembers} /{' '}
-                      {currentPlanData?.limits.teamMembers}
-                    </span>
-                  </div>
-                  <Progress
-                    value={
-                      (planDetails.teamMembers /
-                        (currentPlanData?.limits.teamMembers || 1)) *
-                      100
-                    }
-                    className="h-3"
-                  />
-                  <p className="text-sm text-gray-600">
-                    You have{' '}
-                    {(currentPlanData?.limits.teamMembers || 0) -
-                      planDetails.teamMembers}{' '}
-                    team member slots remaining
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <HardDrive className="h-5 w-5" />
-                    Storage
-                  </CardTitle>
-                  <CardDescription>Storage usage and limit</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Used</span>
-                    <span className="font-medium">
-                      24GB / {currentPlanData?.limits.storage}GB
-                    </span>
-                  </div>
-                  <Progress
-                    value={(24 / (currentPlanData?.limits.storage || 1)) * 100}
-                    className="h-3"
-                  />
-                  <p className="text-sm text-gray-600">
-                    You have {(currentPlanData?.limits.storage || 0) - 24}GB of
-                    storage remaining
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    API Calls
-                  </CardTitle>
-                  <CardDescription>Monthly API usage</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Used</span>
-                    <span className="font-medium">
-                      1,250 /{' '}
-                      {currentPlanData?.limits.apiCalls?.toLocaleString()}
-                    </span>
-                  </div>
-                  <Progress
-                    value={
-                      (1250 / (currentPlanData?.limits.apiCalls || 1)) * 100
-                    }
-                    className="h-3"
-                  />
-                  <p className="text-sm text-gray-600">
-                    You have{' '}
-                    {(
-                      (currentPlanData?.limits.apiCalls || 0) - 1250
-                    ).toLocaleString()}{' '}
-                    API calls remaining this month
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Projects
-                  </CardTitle>
-                  <CardDescription>Active projects limit</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Used</span>
-                    <span className="font-medium">
-                      12 / {currentPlanData?.limits.projects}
-                    </span>
-                  </div>
-                  <Progress
-                    value={(12 / (currentPlanData?.limits.projects || 1)) * 100}
-                    className="h-3"
-                  />
-                  <p className="text-sm text-gray-600">
-                    You can create{' '}
-                    {(currentPlanData?.limits.projects || 0) - 12} more projects
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
         </Tabs>
-
-        {/* Cancel Subscription Modal */}
-        <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-5 w-5" />
-                Cancel Subscription
-              </DialogTitle>
-              <DialogDescription>
-                Are you sure you want to cancel your subscription? You'll be
-                downgraded to the Free plan at the end of your billing cycle.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-medium text-yellow-800 mb-2">
-                  What happens when you cancel:
-                </h4>
-                <ul className="text-sm text-yellow-700 space-y-1">
-                  <li>• You'll keep access until {planDetails.nextBilling}</li>
-                  <li>• After that, you'll be moved to the Free plan</li>
-                  <li>
-                    • You can reactivate anytime before the billing cycle ends
-                  </li>
-                  <li>• No refunds for the current billing period</li>
-                </ul>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowCancelModal(false)}
-              >
-                Keep Subscription
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleCancelSubscription}
-                disabled={isLoading}
-              >
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Cancel Subscription
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Upgrade Modal */}
         <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-          <DialogContent className="sm:max-w-4xl">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ArrowUpCircle className="h-5 w-5 text-green-600" />
+              <DialogTitle className="flex items-center gap-2 text-green-700">
+                <ArrowUpCircle className="h-5 w-5" />
                 Upgrade Your Plan
               </DialogTitle>
               <DialogDescription>
-                Choose a higher tier plan to unlock more features and
-                capabilities
+                Choose a higher-tier plan to unlock more features and
+                capabilities.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
-              {getUpgradePlans().map((plan) => (
-                <Card
-                  key={plan.id}
-                  className={`cursor-pointer transition-all hover:shadow-lg ${
-                    selectedPlan === plan.id
-                      ? 'ring-2 ring-green-500 bg-green-50'
-                      : ''
-                  }`}
-                  onClick={() => setSelectedPlan(plan.id)}
-                >
-                  <CardHeader className="text-center pb-4">
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <div className="mt-2">
-                      <span className="text-3xl font-bold">R{plan.price}</span>
-                      <span className="text-gray-500">/month</span>
+            <div className="py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {getUpgradePlans().map((plan) => (
+                  <div
+                    key={plan.id}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedPlan === plan.id
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedPlan(plan.id)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{plan.name}</h4>
+                      <span className="text-xl font-bold">
+                        R{plan.price}/month
+                      </span>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {plan.features.slice(0, 4).map((feature, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center gap-2 text-sm"
-                        >
+                    <div className="text-sm text-gray-600">
+                      {plan.features.slice(0, 3).map((feature, index) => (
+                        <div key={index} className="flex items-center gap-2">
                           <CheckCircle className="h-3 w-3 text-green-600" />
                           {feature}
-                        </li>
+                        </div>
                       ))}
-                      {plan.features.length > 4 && (
-                        <li className="text-xs text-gray-500">
-                          +{plan.features.length - 4} more features
-                        </li>
-                      )}
-                    </ul>
-                  </CardContent>
-                </Card>
-              ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -1290,13 +909,13 @@ export default function SubscriptionPage() {
               </Button>
               <Button
                 onClick={() => selectedPlan && handlePlanChange(selectedPlan)}
-                disabled={!selectedPlan || isLoading}
-                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+                disabled={loadingPlanId === selectedPlan || !selectedPlan}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <ArrowUpCircle className="h-4 w-4 mr-2" />
-                Upgrade to{' '}
-                {selectedPlan && PLANS.find((p) => p.id === selectedPlan)?.name}
+                {loadingPlanId === selectedPlan && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Upgrade Plan
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1304,77 +923,77 @@ export default function SubscriptionPage() {
 
         {/* Downgrade Modal */}
         <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
-          <DialogContent className="sm:max-w-4xl">
+          {/* Keep max-h and overflow for vertical scroll. */}
+          {/* Re-evaluating max-w: Using more flexible responsive widths or ensuring sufficient width */}
+          {/* I'm going back to allowing the DialogContent to be more flexible, as forcing a very wide
+      dialog on small screens is what leads to overflow and overlapping. Instead, we'll
+      make the *internal grid* smart about collapsing. */}
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[calc(100vw-2rem)] md:max-w-screen-md lg:max-w-screen-lg">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ArrowDownCircle className="h-5 w-5 text-orange-600" />
-                Downgrade Your Plan
+              <DialogTitle className="flex items-center gap-2 text-orange-700">
+                <ArrowDownCircle className="h-5 w-5" />
+                Downgrade Plan
               </DialogTitle>
               <DialogDescription>
-                Choose a lower tier plan. Note that some features may become
-                unavailable.
+                Choose a lower-tier plan. Some features may be limited.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4">
-              {getDowngradePlans().map((plan) => (
-                <Card
-                  key={plan.id}
-                  className={`cursor-pointer transition-all hover:shadow-lg ${
-                    selectedPlan === plan.id
-                      ? 'ring-2 ring-orange-500 bg-orange-50'
-                      : ''
-                  }`}
-                  onClick={() => setSelectedPlan(plan.id)}
-                >
-                  <CardHeader className="text-center pb-4">
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <div className="mt-2">
-                      <span className="text-3xl font-bold">R{plan.price}</span>
-                      <span className="text-gray-500">/month</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {plan.features.slice(0, 4).map((feature, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <CheckCircle className="h-3 w-3 text-green-600" />
-                          {feature}
-                        </li>
-                      ))}
-                      {plan.features.length > 4 && (
-                        <li className="text-xs text-gray-500">
-                          +{plan.features.length - 4} more features
-                        </li>
-                      )}
-                    </ul>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {selectedPlan && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="font-medium text-yellow-800 mb-2">
-                  Important Notice:
-                </h4>
-                <ul className="text-sm text-yellow-700 space-y-1">
+            <div className="py-4">
+              {/* Important section remains at the top, full width */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <h4 className="font-medium text-orange-800 mb-2">Important:</h4>
+                <ul className="text-sm text-orange-700 space-y-1">
+                  <li>• You may lose access to some premium features</li>
+                  <li>• Team member limits may apply</li>
+                  <li>• Storage limits may be reduced</li>
                   <li>
-                    • Your downgrade will take effect at the end of your current
-                    billing cycle
+                    • Changes take effect at the end of your billing cycle
                   </li>
-                  <li>• You'll keep access to current features until then</li>
-                  <li>
-                    • Some data may become inaccessible if it exceeds new plan
-                    limits
-                  </li>
-                  <li>• You can upgrade again at any time</li>
                 </ul>
               </div>
-            )}
 
+              {/* THIS IS THE CRUCIAL PART FOR RESPONSIVE COLUMNS AND TEXT WRAPPING */}
+              {/* Default to 1 column on extra small screens. */}
+              {/* Go to 2 columns on small screens. */}
+              {/* Go to 3 columns on large screens. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getDowngradePlans().map((plan) => (
+                  <div
+                    key={plan.id}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedPlan === plan.id
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedPlan(plan.id)}
+                  >
+                    {/* Flex container for Name and Price: allow wrapping and justify space */}
+                    <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-2">
+                      <h4 className="font-medium text-base sm:text-lg whitespace-normal break-words">
+                        {plan.name}
+                      </h4>
+                      <span className="text-xl font-bold text-nowrap">
+                        R{plan.price}/month
+                      </span>
+                    </div>
+                    {/* Features section: ensure features don't get squished */}
+                    <div className="text-sm text-gray-600 space-y-1">
+                      {plan.features.slice(0, 3).map((feature, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          {' '}
+                          {/* Changed to items-start for multiline features */}
+                          <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0 mt-1" />{' '}
+                          {/* Shrink-0 to keep icon fixed */}
+                          <span className="whitespace-normal break-words">
+                            {feature}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <DialogFooter>
               <Button
                 variant="outline"
@@ -1384,13 +1003,11 @@ export default function SubscriptionPage() {
               </Button>
               <Button
                 onClick={() => selectedPlan && handlePlanChange(selectedPlan)}
-                disabled={!selectedPlan || isLoading}
-                className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                disabled={isLoading || !selectedPlan}
+                className="bg-orange-600 hover:bg-orange-700"
               >
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <ArrowDownCircle className="h-4 w-4 mr-2" />
-                Downgrade to{' '}
-                {selectedPlan && PLANS.find((p) => p.id === selectedPlan)?.name}
+                Downgrade Plan
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1398,7 +1015,7 @@ export default function SubscriptionPage() {
 
         {/* Payment Method Update Modal */}
         <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -1408,175 +1025,270 @@ export default function SubscriptionPage() {
                 Update your payment information for future billing cycles
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+
+            <div className="space-y-6">
+              {/* Security Notice */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  <div>
+                    <h4 className="font-medium text-green-900">
+                      Secure Payment
+                    </h4>
+                    <p className="text-sm text-green-700">
+                      Your payment information is encrypted and secure
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Form */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Cardholder Name */}
+                <div className="md:col-span-2">
                   <Label htmlFor="cardholderName">Cardholder Name *</Label>
                   <Input
                     id="cardholderName"
                     value={paymentDetails.cardholderName}
                     onChange={(e) =>
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        cardholderName: e.target.value,
-                      }))
+                      updatePaymentDetail('cardholderName', e.target.value)
                     }
                     placeholder="John Doe"
-                    className="mt-1"
+                    className={`mt-1 ${validationErrors.cardholderName ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {validationErrors.cardholderName && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.cardholderName}
+                    </p>
+                  )}
                 </div>
 
-                <div className="col-span-2">
+                {/* Card Number */}
+                <div className="md:col-span-2">
                   <Label htmlFor="cardNumber">Card Number *</Label>
-                  <Input
-                    id="cardNumber"
-                    value={paymentDetails.cardNumber}
-                    onChange={(e) => {
-                      const formatted = formatCardNumber(e.target.value);
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        cardNumber: formatted,
-                      }));
-                    }}
-                    placeholder="1234 5678 9012 3456"
-                    maxLength={19}
-                    className="mt-1"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="cardNumber"
+                      value={paymentDetails.cardNumber}
+                      onChange={(e) => handleCardNumberChange(e.target.value)}
+                      placeholder="1234 5678 9012 3456"
+                      maxLength={19}
+                      className={`mt-1 pr-16 ${validationErrors.cardNumber ? 'border-red-300 focus:border-red-500' : ''}`}
+                    />
+                    {cardType !== 'Unknown' && paymentDetails.cardNumber && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <Badge variant="outline" className="text-xs">
+                          {cardType}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  {validationErrors.cardNumber && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.cardNumber}
+                    </p>
+                  )}
                 </div>
 
+                {/* Expiry Date */}
                 <div>
                   <Label htmlFor="expiryDate">Expiry Date *</Label>
                   <Input
                     id="expiryDate"
                     value={paymentDetails.expiryDate}
-                    onChange={(e) => {
-                      const formatted = formatExpiryDate(e.target.value);
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        expiryDate: formatted,
-                      }));
-                    }}
+                    onChange={(e) => handleExpiryDateChange(e.target.value)}
                     placeholder="MM/YY"
                     maxLength={5}
-                    className="mt-1"
+                    className={`mt-1 ${validationErrors.expiryDate ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {validationErrors.expiryDate && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.expiryDate}
+                    </p>
+                  )}
                 </div>
 
+                {/* CVV */}
                 <div>
-                  <Label htmlFor="cvv">CVV *</Label>
+                  <Label htmlFor="cvv" className="flex items-center gap-2">
+                    CVV *
+                    <button
+                      type="button"
+                      onClick={() => setShowCVVInfo(!showCVVInfo)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </Label>
                   <Input
                     id="cvv"
                     value={paymentDetails.cvv}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      setPaymentDetails((prev) => ({ ...prev, cvv: value }));
-                    }}
-                    placeholder="123"
-                    maxLength={4}
-                    className="mt-1"
+                    onChange={(e) => handleCVVChange(e.target.value)}
+                    placeholder={
+                      cardType === 'American Express' ? '1234' : '123'
+                    }
+                    maxLength={cardType === 'American Express' ? 4 : 3}
+                    className={`mt-1 ${validationErrors.cvv ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {showCVVInfo && (
+                    <p className="text-xs bg-blue-50 p-2 rounded border mt-1">
+                      The CVV is the{' '}
+                      {cardType === 'American Express' ? '4-digit' : '3-digit'}{' '}
+                      security code
+                      {cardType === 'American Express'
+                        ? ' on the front'
+                        : ' on the back'}{' '}
+                      of your card.
+                    </p>
+                  )}
+                  {validationErrors.cvv && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.cvv}
+                    </p>
+                  )}
                 </div>
 
-                <div className="col-span-2">
+                {/* Billing Address */}
+                <div className="md:col-span-2">
                   <Label htmlFor="billingAddress">Billing Address</Label>
                   <Input
                     id="billingAddress"
                     value={paymentDetails.billingAddress}
                     onChange={(e) =>
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        billingAddress: e.target.value,
-                      }))
+                      updatePaymentDetail('billingAddress', e.target.value)
                     }
                     placeholder="123 Main Street"
-                    className="mt-1"
+                    className={`mt-1 ${validationErrors.billingAddress ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {validationErrors.billingAddress && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.billingAddress}
+                    </p>
+                  )}
                 </div>
 
+                {/* City */}
                 <div>
                   <Label htmlFor="city">City</Label>
                   <Input
                     id="city"
                     value={paymentDetails.city}
                     onChange={(e) =>
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        city: e.target.value,
-                      }))
+                      updatePaymentDetail('city', e.target.value)
                     }
-                    placeholder="New York"
-                    className="mt-1"
+                    placeholder="Johannesburg"
+                    className={`mt-1 ${validationErrors.city ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {validationErrors.city && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.city}
+                    </p>
+                  )}
                 </div>
 
+                {/* ZIP Code */}
                 <div>
                   <Label htmlFor="zipCode">ZIP Code</Label>
                   <Input
                     id="zipCode"
                     value={paymentDetails.zipCode}
                     onChange={(e) =>
-                      setPaymentDetails((prev) => ({
-                        ...prev,
-                        zipCode: e.target.value,
-                      }))
+                      updatePaymentDetail('zipCode', e.target.value)
                     }
                     placeholder="10001"
-                    className="mt-1"
+                    className={`mt-1 ${validationErrors.zipCode ? 'border-red-300 focus:border-red-500' : ''}`}
                   />
+                  {validationErrors.zipCode && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.zipCode}
+                    </p>
+                  )}
                 </div>
 
-                <div className="col-span-2">
-                  <Label htmlFor="country">Country</Label>
+                {/* Country */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="country">Country *</Label>
                   <Select
                     value={paymentDetails.country}
                     onValueChange={(value) =>
-                      setPaymentDetails((prev) => ({ ...prev, country: value }))
+                      updatePaymentDetail('country', value)
                     }
                   >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
+                    <SelectTrigger
+                      className={`mt-1 ${validationErrors.country ? 'border-red-300 focus:border-red-500' : ''}`}
+                    >
+                      <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ZA">South Africa</SelectItem>
-                      <SelectItem value="US">United States</SelectItem>
-                      <SelectItem value="CA">Canada</SelectItem>
-                      <SelectItem value="GB">United Kingdom</SelectItem>
-                      <SelectItem value="AU">Australia</SelectItem>
-                      <SelectItem value="DE">Germany</SelectItem>
-                      <SelectItem value="FR">France</SelectItem>
-                      <SelectItem value="IN">India</SelectItem>
-                      <SelectItem value="JP">Japan</SelectItem>
-                      <SelectItem value="BR">Brazil</SelectItem>
-                      <SelectItem value="IT">Italy</SelectItem>
-                      <SelectItem value="ES">Spain</SelectItem>
-                      <SelectItem value="MX">Mexico</SelectItem>
-                      <SelectItem value="SG">Singapore</SelectItem>
-                      <SelectItem value="NL">Netherlands</SelectItem>
-                      <SelectItem value="SE">Sweden</SelectItem>
-                      <SelectItem value="CH">Switzerland</SelectItem>
+                      {COUNTRIES.map((country) => (
+                        <SelectItem key={country.code} value={country.code}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {validationErrors.country && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validationErrors.country}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                <Shield className="h-4 w-4 text-blue-600" />
-                <p className="text-sm text-blue-700">
-                  Your payment information is encrypted and secure
-                </p>
-              </div>
+              {/* Form Summary */}
+              {isFormValid() && (
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 mb-2">
+                    Payment Method Summary
+                  </h4>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p>
+                      Card: {cardType} ending in{' '}
+                      {paymentDetails.cardNumber.slice(-4)}
+                    </p>
+                    <p>Expires: {paymentDetails.expiryDate}</p>
+                    <p>Cardholder: {paymentDetails.cardholderName}</p>
+                  </div>
+                </div>
+              )}
             </div>
+
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setShowPaymentModal(false)}
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setPaymentDetails({
+                    cardholderName: '',
+                    cardNumber: '',
+                    expiryDate: '',
+                    cvv: '',
+                    billingAddress: '',
+                    city: '',
+                    zipCode: '',
+                    country: 'ZA',
+                  });
+                  setValidationErrors({});
+                }}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleUpdatePaymentMethod}
-                disabled={isLoading}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                disabled={isLoading || !isFormValid()}
+                className={`${
+                  !isFormValid()
+                    ? 'opacity-50 cursor-not-allowed bg-gray-300'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700'
+                }`}
               >
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <Lock className="h-4 w-4 mr-2" />

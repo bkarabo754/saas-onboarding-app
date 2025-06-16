@@ -94,7 +94,13 @@ export default function PrivacySecurityPage() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Separate loading states for different actions
+  const [isSaveLoading, setIsSaveLoading] = useState(false);
+  const [isExportLoading, setIsExportLoading] = useState(false);
+  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+  const [is2FALoading, setIs2FALoading] = useState(false);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
   const [show2FASetup, setShow2FASetup] = useState(false);
@@ -124,7 +130,7 @@ export default function PrivacySecurityPage() {
       type: 'login',
       description: 'Successful login',
       timestamp: '2025-01-15T10:30:00Z',
-      location: 'Johannesburg, SA',
+      location: 'South Africa, ZA',
       device: 'Chrome on Windows',
       status: 'success',
     },
@@ -132,8 +138,8 @@ export default function PrivacySecurityPage() {
       id: '2',
       type: 'password_change',
       description: 'Password updated',
-      timestamp: '2024-01-14T15:45:00Z',
-      location: 'Johannesburg, SA',
+      timestamp: '2025-05-14T15:45:00Z',
+      location: 'South Africa, ZA',
       device: 'Chrome on Windows',
       status: 'success',
     },
@@ -141,8 +147,8 @@ export default function PrivacySecurityPage() {
       id: '3',
       type: 'device_added',
       description: 'New device authorized',
-      timestamp: '2024-01-13T09:15:00Z',
-      location: 'Johannesburg, SA',
+      timestamp: '2025-06-13T09:15:00Z',
+      location: 'South Africa, ZA',
       device: 'Safari on iPhone',
       status: 'success',
     },
@@ -150,7 +156,7 @@ export default function PrivacySecurityPage() {
       id: '4',
       type: 'login',
       description: 'Failed login attempt',
-      timestamp: '2024-01-12T22:30:00Z',
+      timestamp: '2025-04-12T22:30:00Z',
       location: 'Unknown',
       device: 'Chrome on Linux',
       status: 'failed',
@@ -163,8 +169,8 @@ export default function PrivacySecurityPage() {
       name: 'MacBook Pro',
       type: 'desktop',
       browser: 'Chrome 120',
-      location: 'Johannesburg, SA',
-      lastActive: '2024-01-15T10:30:00Z',
+      location: 'South Africa, ZA',
+      lastActive: '2025-06-16T10:30:00Z',
       current: true,
     },
     {
@@ -172,8 +178,8 @@ export default function PrivacySecurityPage() {
       name: 'iPhone 15',
       type: 'mobile',
       browser: 'Safari Mobile',
-      location: 'Johannesburg, SA',
-      lastActive: '2025-03-22T08:15:00Z',
+      location: 'South Africa, ZA',
+      lastActive: '2025-06-15T08:15:00Z',
       current: false,
     },
     {
@@ -181,8 +187,8 @@ export default function PrivacySecurityPage() {
       name: 'iPad Air',
       type: 'tablet',
       browser: 'Safari',
-      location: 'Johannesburg, SA',
-      lastActive: '2025-05-20T16:45:00Z',
+      location: 'South Africa, ZA',
+      lastActive: '2025-05-26T16:45:00Z',
       current: false,
     },
   ]);
@@ -192,7 +198,7 @@ export default function PrivacySecurityPage() {
   };
 
   const handleSaveSettings = async () => {
-    setIsLoading(true);
+    setIsSaveLoading(true); // Use separate loading state
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -220,12 +226,12 @@ export default function PrivacySecurityPage() {
     } catch (error) {
       toast.error('Failed to update settings');
     } finally {
-      setIsLoading(false);
+      setIsSaveLoading(false); // Clear only save loading state
     }
   };
 
   const handleEnable2FA = async () => {
-    setIsLoading(true);
+    setIs2FALoading(true); // Use separate loading state for 2FA
     try {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -244,12 +250,12 @@ export default function PrivacySecurityPage() {
     } catch (error) {
       toast.error('Failed to enable 2FA');
     } finally {
-      setIsLoading(false);
+      setIs2FALoading(false); // Clear only 2FA loading state
     }
   };
 
   const handleExportData = async () => {
-    setIsLoading(true);
+    setIsExportLoading(true); // Use separate loading state for export
     try {
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -475,19 +481,16 @@ export default function PrivacySecurityPage() {
 
       // Footer
       const pageCount = pdf.getNumberOfPages();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - 30, pageHeight - 10);
         pdf.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth - 30,
-          pdf.internal.pageSize.getHeight() - 10
-        );
-        pdf.text(
-          'Confidential - Privacy & Security Data Export',
+          'Getting Started Guide - Confidential',
           margin,
-          pdf.internal.pageSize.getHeight() - 10
+          pageHeight - 10
         );
       }
 
@@ -518,7 +521,7 @@ export default function PrivacySecurityPage() {
     } catch (error) {
       toast.error('Failed to export data');
     } finally {
-      setIsLoading(false);
+      setIsExportLoading(false); // Clear only export loading state
     }
   };
 
@@ -531,7 +534,7 @@ export default function PrivacySecurityPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsDeleteLoading(true); // Use separate loading state for delete
     try {
       // Call the delete account API
       const response = await fetch('/api/account/delete', {
@@ -576,7 +579,7 @@ export default function PrivacySecurityPage() {
         error instanceof Error ? error.message : 'Failed to delete account'
       );
     } finally {
-      setIsLoading(false);
+      setIsDeleteLoading(false); // Clear only delete loading state
     }
   };
 
@@ -1071,10 +1074,10 @@ export default function PrivacySecurityPage() {
                   </div>
                   <Button
                     onClick={handleExportData}
-                    disabled={isLoading}
+                    disabled={isExportLoading} // Only disable when export is loading
                     className="w-full"
                   >
-                    {isLoading && (
+                    {isExportLoading && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     )}
                     <Download className="h-4 w-4 mr-2" />
@@ -1119,10 +1122,10 @@ export default function PrivacySecurityPage() {
         <div className="flex justify-end mt-8">
           <Button
             onClick={handleSaveSettings}
-            disabled={isLoading}
+            disabled={isSaveLoading} // Only disable when save is loading
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
           >
-            {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isSaveLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             <Shield className="h-4 w-4 mr-2" />
             Save Security Settings
           </Button>
@@ -1226,10 +1229,10 @@ export default function PrivacySecurityPage() {
                     show2FASetup ? handleEnable2FA : () => setShow2FASetup(true)
                   }
                   disabled={
-                    isLoading || (show2FASetup && twoFactorCode.length !== 6)
-                  }
+                    is2FALoading || (show2FASetup && twoFactorCode.length !== 6)
+                  } // Use separate 2FA loading state
                 >
-                  {isLoading && (
+                  {is2FALoading && (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   )}
                   {show2FASetup ? 'Enable 2FA' : 'Set Up 2FA'}
@@ -1360,14 +1363,16 @@ export default function PrivacySecurityPage() {
               <Button
                 variant="destructive"
                 onClick={handleDeleteAccount}
-                disabled={isLoading || !isDeleteConfirmed}
+                disabled={isDeleteLoading || !isDeleteConfirmed} // Use separate delete loading state
                 className={`${
                   !isDeleteConfirmed
                     ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-red-700'
                 }`}
               >
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isDeleteLoading && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
                 Delete Account Permanently
               </Button>
             </DialogFooter>

@@ -64,6 +64,7 @@ import {
 } from '@/lib/validations/checkout';
 
 const COUNTRIES = [
+  { code: 'ZA', name: 'South Africa' },
   { code: 'US', name: 'United States' },
   { code: 'CA', name: 'Canada' },
   { code: 'GB', name: 'United Kingdom' },
@@ -582,7 +583,7 @@ export default function CheckoutPage() {
                               <FormControl>
                                 <Input
                                   {...field}
-                                  placeholder="New York"
+                                  placeholder="Johannesburg"
                                   className={`mt-1 ${errors.city ? 'border-red-300 focus:border-red-500' : ''}`}
                                 />
                               </FormControl>
@@ -605,7 +606,7 @@ export default function CheckoutPage() {
                               <FormControl>
                                 <Input
                                   {...field}
-                                  placeholder="NY"
+                                  placeholder="Gauteng"
                                   className={`mt-1 ${errors.state ? 'border-red-300 focus:border-red-500' : ''}`}
                                 />
                               </FormControl>

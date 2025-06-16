@@ -5,33 +5,40 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import {
   Bell,
   Check,
-  X,
-  Trash2,
-  Settings,
-  CreditCard,
   Users,
   FolderPlus,
-  AlertCircle,
-  CheckCircle,
-  Info,
   Zap,
+  Activity,
+  CreditCard,
+  Settings,
+  Shield,
+  Eye,
+  Trash2,
+  CheckCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Notification {
   id: string;
-  type: 'subscription' | 'billing' | 'project' | 'team' | 'system';
+  type:
+    | 'team'
+    | 'project'
+    | 'integration'
+    | 'report'
+    | 'subscription'
+    | 'workspace'
+    | 'billing'
+    | 'security';
   title: string;
   message: string;
   timestamp: Date;
@@ -39,165 +46,150 @@ interface Notification {
   link?: string;
 }
 
-const getNotificationIcon = (type: string) => {
-  switch (type) {
-    case 'subscription':
-      return CreditCard;
-    case 'billing':
-      return CreditCard;
-    case 'project':
-      return FolderPlus;
-    case 'team':
-      return Users;
-    case 'system':
-      return Settings;
-    default:
-      return Bell;
-  }
-};
-
-const getNotificationColor = (type: string) => {
-  switch (type) {
-    case 'subscription':
-      return 'text-blue-600 bg-blue-100';
-    case 'billing':
-      return 'text-green-600 bg-green-100';
-    case 'project':
-      return 'text-purple-600 bg-purple-100';
-    case 'team':
-      return 'text-orange-600 bg-orange-100';
-    case 'system':
-      return 'text-gray-600 bg-gray-100';
-    default:
-      return 'text-blue-600 bg-blue-100';
-  }
-};
-
-const formatTimestamp = (timestamp: Date) => {
-  const now = new Date();
-  const diff = now.getTime() - new Date(timestamp).getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
-};
-
 export function NotificationDropdown() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Load notifications from localStorage
   useEffect(() => {
-    // Load notifications from localStorage
     const loadNotifications = () => {
-      const stored = localStorage.getItem('notifications');
-      if (stored) {
-        const parsed = JSON.parse(stored).map((n: any) => ({
-          ...n,
-          timestamp: new Date(n.timestamp),
-        }));
-        setNotifications(parsed);
-      } else {
-        // Initialize with some default notifications
-        const defaultNotifications: Notification[] = [
-          {
-            id: '1',
-            type: 'subscription',
-            title: 'Welcome to Professional Plan',
-            message: 'Your subscription is now active. Enjoy premium features!',
-            timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-            read: false,
-            link: '/subscription',
-          },
-          {
-            id: '2',
-            type: 'team',
-            title: 'New team member joined',
-            message: 'Sarah Johnson has joined your workspace',
-            timestamp: new Date(Date.now() - 7200000), // 2 hours ago
-            read: false,
-            link: '/workspace-settings',
-          },
-          {
-            id: '3',
-            type: 'project',
-            title: 'Project milestone completed',
-            message: 'Website redesign Phase 1 is complete',
-            timestamp: new Date(Date.now() - 86400000), // 1 day ago
-            read: true,
-            link: '/projects',
-          },
-        ];
-        setNotifications(defaultNotifications);
-        localStorage.setItem(
-          'notifications',
-          JSON.stringify(defaultNotifications)
-        );
-      }
+      const storedNotifications = JSON.parse(
+        localStorage.getItem('notifications') || '[]'
+      );
+      const parsedNotifications = storedNotifications.map((notif: any) => ({
+        ...notif,
+        timestamp: new Date(notif.timestamp),
+      }));
+      setNotifications(parsedNotifications);
     };
 
     loadNotifications();
 
-    // Listen for storage changes (when notifications are added from other components)
-    const handleStorageChange = () => {
-      loadNotifications();
+    // Listen for storage changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'notifications') {
+        loadNotifications();
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
-
-    // Also listen for custom events
-    const handleNotificationUpdate = () => {
-      loadNotifications();
-    };
-
-    window.addEventListener('notificationUpdate', handleNotificationUpdate);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(
-        'notificationUpdate',
-        handleNotificationUpdate
-      );
-    };
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'team':
+        return Users;
+      case 'project':
+        return FolderPlus;
+      case 'integration':
+        return Zap;
+      case 'report':
+        return Activity;
+      case 'subscription':
+        return CreditCard;
+      case 'workspace':
+        return Settings;
+      case 'billing':
+        return CreditCard;
+      case 'security':
+        return Shield;
+      default:
+        return Bell;
+    }
+  };
 
-  const markAsRead = (id: string) => {
-    const updated = notifications.map((n) =>
-      n.id === id ? { ...n, read: true } : n
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'team':
+        return 'bg-purple-100 text-purple-600';
+      case 'project':
+        return 'bg-blue-100 text-blue-600';
+      case 'integration':
+        return 'bg-green-100 text-green-600';
+      case 'report':
+        return 'bg-orange-100 text-orange-600';
+      case 'subscription':
+        return 'bg-emerald-100 text-emerald-600';
+      case 'workspace':
+        return 'bg-indigo-100 text-indigo-600';
+      case 'billing':
+        return 'bg-yellow-100 text-yellow-600';
+      case 'security':
+        return 'bg-red-100 text-red-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const markAsRead = (notificationId: string) => {
+    const updatedNotifications = notifications.map((notif) =>
+      notif.id === notificationId ? { ...notif, read: true } : notif
     );
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    toast.success('Notification marked as read');
+
+    setNotifications(updatedNotifications);
+    localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
   };
 
   const markAllAsRead = () => {
-    const updated = notifications.map((n) => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
+    const updatedNotifications = notifications.map((notif) => ({
+      ...notif,
+      read: true,
+    }));
+    setNotifications(updatedNotifications);
+    localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
     toast.success('All notifications marked as read');
   };
 
-  const removeNotification = (id: string) => {
-    const updated = notifications.filter((n) => n.id !== id);
-    setNotifications(updated);
-    localStorage.setItem('notifications', JSON.stringify(updated));
-    toast.success('Notification removed');
+  const deleteNotification = (notificationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updatedNotifications = notifications.filter(
+      (notif) => notif.id !== notificationId
+    );
+    setNotifications(updatedNotifications);
+    localStorage.setItem('notifications', JSON.stringify(updatedNotifications));
+    toast.success('Notification deleted');
   };
 
-  const clearAllNotifications = () => {
-    setNotifications([]);
-    localStorage.setItem('notifications', JSON.stringify([]));
-    toast.success('All notifications cleared');
+  const handleNotificationClick = (notification: Notification) => {
+    // Mark as read
+    markAsRead(notification.id);
+
+    // Close dropdown
+    setIsOpen(false);
+
+    // Navigate to link if available
+    if (notification.link) {
+      router.push(notification.link);
+    }
   };
 
-  const filterByType = (type: string) => {
-    return notifications.filter((n) => n.type === type);
+  const handleViewAllClick = () => {
+    setIsOpen(false);
+    router.push('/notifications');
   };
+
+  const formatTimestamp = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor(
+      (now.getTime() - timestamp.getTime()) / (1000 * 60)
+    );
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d ago`;
+  };
+
+  const unreadCount = notifications.filter((notif) => !notif.read).length;
+  const recentNotifications = notifications
+    .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    .slice(0, 5); // Show only 5 most recent
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -205,87 +197,110 @@ export function NotificationDropdown() {
         <Button variant="outline" size="sm" className="relative">
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 bg-red-500 text-white text-xs">
-              {unreadCount > 9 ? '9+' : unreadCount}
+            <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
             </Badge>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={markAllAsRead}
-              className="h-auto p-1 text-xs"
-            >
-              Mark all read
-            </Button>
-          )}
-        </DropdownMenuLabel>
 
-        {notifications.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">
-            <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No notifications</p>
+      <DropdownMenuContent
+        align="end"
+        className="w-80 sm:w-96 p-0 max-h-[80vh] flex flex-col"
+        sideOffset={5}
+      >
+        {/* Header - Fixed */}
+        <div className="p-4 border-b bg-white">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900">Notifications</h3>
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <Badge className="bg-red-500 text-white text-xs">
+                  {unreadCount}
+                </Badge>
+              )}
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={markAllAsRead}
+                  className="text-xs h-6 px-2"
+                >
+                  <CheckCheck className="h-3 w-3 mr-1" />
+                  Mark all read
+                </Button>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-            <ScrollArea className="h-80">
-              {notifications.slice(0, 10).map((notification) => {
-                const Icon = getNotificationIcon(notification.type);
-                const colorClass = getNotificationColor(notification.type);
+        </div>
+
+        {/* Notifications List - Scrollable */}
+        <div className="flex-1 overflow-y-auto max-h-80">
+          {recentNotifications.length === 0 ? (
+            <div className="p-8 text-center">
+              <Bell className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No notifications yet</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {recentNotifications.map((notification) => {
+                const IconComponent = getNotificationIcon(notification.type);
 
                 return (
-                  <DropdownMenuItem
+                  <div
                     key={notification.id}
-                    className={`p-3 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}`}
-                    onClick={() => {
-                      if (notification.link) {
-                        window.location.href = notification.link;
-                      }
-                      if (!notification.read) {
-                        markAsRead(notification.id);
-                      }
-                    }}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      !notification.read
+                        ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                        : ''
+                    }`}
                   >
-                    <div className="flex gap-3 w-full">
+                    <div className="flex items-start gap-3">
                       <div
-                        className={`p-2 rounded-full ${colorClass} flex-shrink-0`}
+                        className={`p-2 rounded-full ${getNotificationColor(notification.type)} flex-shrink-0`}
                       >
-                        <Icon className="h-4 w-4" />
+                        <IconComponent className="h-4 w-4" />
                       </div>
+
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-2">
                           <h4
-                            className={`text-sm font-medium ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}
+                            className={`text-sm font-medium truncate ${
+                              !notification.read
+                                ? 'text-gray-900'
+                                : 'text-gray-700'
+                            }`}
                           >
                             {notification.title}
                           </h4>
-                          <div className="flex items-center gap-1 ml-2">
+                          <div className="flex items-center gap-1 flex-shrink-0">
                             {!notification.read && (
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeNotification(notification.id);
-                              }}
-                              className="h-auto p-1 opacity-0 group-hover:opacity-100"
+                            <button
+                              onClick={(e) =>
+                                deleteNotification(notification.id, e)
+                              }
+                              className="opacity-0 group-hover:opacity-100 hover:text-red-600 transition-all p-1"
                             >
-                              <X className="h-3 w-3" />
-                            </Button>
+                              <Trash2 className="h-3 w-3" />
+                            </button>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+
+                        <p
+                          className={`text-xs mt-1 line-clamp-2 ${
+                            !notification.read
+                              ? 'text-gray-800'
+                              : 'text-gray-600'
+                          }`}
+                        >
                           {notification.message}
                         </p>
+
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-500">
                             {formatTimestamp(notification.timestamp)}
                           </span>
                           <Badge
@@ -297,35 +312,33 @@ export function NotificationDropdown() {
                         </div>
                       </div>
                     </div>
-                  </DropdownMenuItem>
+                  </div>
                 );
               })}
-            </ScrollArea>
+            </div>
+          )}
+        </div>
 
-            <DropdownMenuSeparator />
-
-            <div className="p-2 space-y-1">
-              {notifications.length > 10 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start text-xs"
-                >
-                  View all {notifications.length} notifications
-                </Button>
-              )}
-
-              {notifications.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllNotifications}
-                  className="w-full justify-start text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-3 w-3 mr-2" />
-                  Clear all notifications
-                </Button>
-              )}
+        {/* Footer - Fixed */}
+        {notifications.length > 0 && (
+          <>
+            <Separator />
+            <div className="p-3 bg-gray-50">
+              <Button
+                variant="ghost"
+                className="w-full justify-between text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                onClick={handleViewAllClick}
+              >
+                <span>View All Notifications</span>
+                <div className="flex items-center gap-1">
+                  {notifications.length > 5 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{notifications.length - 5} more
+                    </Badge>
+                  )}
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Button>
             </div>
           </>
         )}

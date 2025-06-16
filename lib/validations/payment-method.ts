@@ -56,11 +56,12 @@ const validateCVV = (cvv: string, cardNumber: string): boolean => {
   return /^\d{3}$/.test(cvv);
 };
 
-export const checkoutFormSchema = z
+export const paymentMethodSchema = z
   .object({
     // Personal Information
     cardholderName: z
       .string()
+      .min(1, 'Cardholder name is required')
       .min(2, 'Cardholder name must be at least 2 characters')
       .max(50, 'Cardholder name must be less than 50 characters')
       .regex(
@@ -72,13 +73,6 @@ export const checkoutFormSchema = z
         'Please enter your full name (first and last name)'
       ),
 
-    email: z
-      .string()
-      .email('Please enter a valid email address')
-      .min(5, 'Email must be at least 5 characters')
-      .max(100, 'Email must be less than 100 characters')
-      .toLowerCase(),
-
     // Payment Information
     cardNumber: z
       .string()
@@ -86,11 +80,11 @@ export const checkoutFormSchema = z
       .refine((cardNumber) => {
         const cleaned = cardNumber.replace(/\s/g, '');
         return /^\d{13,19}$/.test(cleaned);
-      }, 'Card number must be 13-19 digits'),
-    //   .refine((cardNumber) => {
-    //     const cleaned = cardNumber.replace(/\s/g, '');
-    //     return validateCardNumber(cleaned);
-    //   }, 'Please enter a valid card number'),
+      }, 'Card number must be 13-19 digits')
+      .refine((cardNumber) => {
+        const cleaned = cardNumber.replace(/\s/g, '');
+        return validateCardNumber(cleaned);
+      }, 'Please enter a valid card number'),
 
     expiryDate: z
       .string()
@@ -106,43 +100,33 @@ export const checkoutFormSchema = z
       .min(1, 'CVV is required')
       .regex(/^\d{3,4}$/, 'CVV must be 3 or 4 digits'),
 
-    // Billing Address
+    // Billing Address (Optional but validated if provided)
     billingAddress: z
       .string()
-      .min(5, 'Billing address must be at least 5 characters')
       .max(100, 'Billing address must be less than 100 characters')
       .optional()
       .or(z.literal('')),
 
     city: z
       .string()
-      .min(2, 'City must be at least 2 characters')
       .max(50, 'City must be less than 50 characters')
       .regex(
-        /^[a-zA-Z\s'-]+$/,
+        /^[a-zA-Z\s'-]*$/,
         'City can only contain letters, spaces, hyphens, and apostrophes'
       )
       .optional()
       .or(z.literal('')),
 
-    state: z
-      .string()
-      .min(2, 'State must be at least 2 characters')
-      .max(50, 'State must be less than 50 characters')
-      .optional()
-      .or(z.literal('')),
-
     zipCode: z
       .string()
-      .min(4, 'ZIP code must be at least 4 characters')
       .max(10, 'ZIP code must be less than 10 characters')
-      .regex(/^[0-9A-Za-z\s-]+$/, 'Invalid ZIP code format')
+      .regex(/^[0-9A-Za-z\s-]*$/, 'Invalid ZIP code format')
       .optional()
       .or(z.literal('')),
 
     country: z
       .string()
-      .min(2, 'Please select a country')
+      .min(1, 'Please select a country')
       .max(2, 'Invalid country code'),
   })
   .refine(
@@ -156,7 +140,7 @@ export const checkoutFormSchema = z
     }
   );
 
-export type CheckoutFormData = z.infer<typeof checkoutFormSchema>;
+export type PaymentMethodFormData = z.infer<typeof paymentMethodSchema>;
 
 // Helper functions for formatting
 export const formatCardNumber = (value: string): string => {
@@ -193,7 +177,7 @@ export const getCardType = (cardNumber: string): string => {
 
   if (/^4/.test(cleaned)) return 'Visa';
   if (/^5[1-5]/.test(cleaned)) return 'Mastercard';
-  //   if (/^3[47]/.test(cleaned)) return 'American Express';
+  if (/^3[47]/.test(cleaned)) return 'American Express';
   if (/^6/.test(cleaned)) return 'Discover';
 
   return 'Unknown';

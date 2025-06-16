@@ -63,6 +63,32 @@ interface ProjectTemplate {
   tasks: string[];
 }
 
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  template: string;
+  templateName: string;
+  tasks: string[];
+  createdAt: string;
+  status: 'active' | 'paused' | 'completed' | 'archived';
+  progress: number;
+  category: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate: string;
+  teamMembers: string[];
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'Active' | 'Pending' | 'Inactive';
+  avatar?: string;
+  joinedDate: string;
+}
+
 const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: 'blank',
@@ -139,22 +165,35 @@ export default function DashboardPage() {
   const { user } = useUser();
   const router = useRouter();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [stats, setStats] = useState({
-    totalProjects: 12,
-    teamMembers: 8,
-    activeTasks: 24,
-    efficiency: 95,
+    totalProjects: 0,
+    teamMembers: 0,
+    activeTasks: 0,
+    efficiency: 0,
   });
   const [isCreatingProject, setIsCreatingProject] = useState(false);
 
-  // Load activity from localStorage and listen for changes
+  // Load data from localStorage and listen for changes
   useEffect(() => {
-    const loadActivity = () => {
+    const loadData = () => {
+      // Load projects
+      const storedProjects = JSON.parse(
+        localStorage.getItem('projects') || '[]'
+      );
+      setProjects(storedProjects);
+
+      // Load team members from workspace settings (if available)
+      const storedTeamMembers = JSON.parse(
+        localStorage.getItem('teamMembers') || '[]'
+      );
+      setTeamMembers(storedTeamMembers);
+
       // Load notifications as activity
       const notifications = JSON.parse(
         localStorage.getItem('notifications') || '[]'
       );
-      const projects = JSON.parse(localStorage.getItem('projects') || '[]');
 
       // Convert notifications to activity items
       const notificationActivity = notifications
@@ -188,27 +227,53 @@ export default function DashboardPage() {
           : defaultActivity;
       setRecentActivity(combinedActivity);
 
-      // Update stats based on stored data
-      setStats((prev) => ({
-        ...prev,
-        totalProjects: projects.length || prev.totalProjects,
-      }));
+      // Calculate real stats
+      const totalProjects = storedProjects.length;
+      const activeProjects = storedProjects.filter(
+        (p: Project) => p.status === 'active'
+      );
+      const totalTasks = storedProjects.reduce(
+        (sum: number, project: Project) => sum + project.tasks.length,
+        0
+      );
+      const completedProjects = storedProjects.filter(
+        (p: Project) => p.status === 'completed'
+      );
+
+      // Calculate efficiency based on completed vs total projects
+      let efficiency = 0;
+      if (totalProjects > 0) {
+        efficiency = Math.round(
+          (completedProjects.length / totalProjects) * 100
+        );
+      }
+
+      setStats({
+        totalProjects,
+        teamMembers: storedTeamMembers.length,
+        activeTasks: totalTasks,
+        efficiency,
+      });
     };
 
     // Load initially
-    loadActivity();
+    loadData();
 
-    // Listen for storage changes (when notifications are added)
+    // Listen for storage changes (when projects/team members are added)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'notifications' || e.key === 'projects') {
-        loadActivity();
+      if (
+        e.key === 'notifications' ||
+        e.key === 'projects' ||
+        e.key === 'teamMembers'
+      ) {
+        loadData();
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
 
     // Also check for changes every 5 seconds (for same-tab updates)
-    const interval = setInterval(loadActivity, 5000);
+    const interval = setInterval(loadData, 5000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -256,21 +321,21 @@ export default function DashboardPage() {
   const getActivityColor = (type: string) => {
     switch (type) {
       case 'team':
-        return 'bg-purple-100';
+        return 'bg-purple-100 dark:bg-purple-900';
       case 'project':
-        return 'bg-blue-100';
+        return 'bg-blue-100 dark:bg-blue-900';
       case 'integration':
-        return 'bg-green-100';
+        return 'bg-green-100 dark:bg-green-900';
       case 'report':
-        return 'bg-orange-100';
+        return 'bg-orange-100 dark:bg-orange-900';
       case 'subscription':
-        return 'bg-emerald-100';
+        return 'bg-emerald-100 dark:bg-emerald-900';
       case 'workspace':
-        return 'bg-indigo-100';
+        return 'bg-indigo-100 dark:bg-indigo-900';
       case 'billing':
-        return 'bg-yellow-100';
+        return 'bg-yellow-100 dark:bg-yellow-900';
       default:
-        return 'bg-gray-100';
+        return 'bg-gray-100 dark:bg-gray-800';
     }
   };
 
@@ -289,10 +354,10 @@ export default function DashboardPage() {
         templateName: template.name,
         tasks: template.tasks,
         createdAt: new Date().toISOString(),
-        status: 'active',
+        status: 'active' as const,
         progress: 0,
         category: template.category,
-        priority: 'medium',
+        priority: 'medium' as const,
         dueDate: '',
         teamMembers: [],
       };
@@ -301,10 +366,8 @@ export default function DashboardPage() {
       const existingProjects = JSON.parse(
         localStorage.getItem('projects') || '[]'
       );
-      localStorage.setItem(
-        'projects',
-        JSON.stringify([projectData, ...existingProjects])
-      );
+      const updatedProjects = [projectData, ...existingProjects];
+      localStorage.setItem('projects', JSON.stringify(updatedProjects));
 
       // Add notification
       const notification = {
@@ -328,16 +391,10 @@ export default function DashboardPage() {
       // Trigger storage event for same-tab updates
       window.dispatchEvent(
         new StorageEvent('storage', {
-          key: 'notifications',
-          newValue: JSON.stringify([notification, ...existingNotifications]),
+          key: 'projects',
+          newValue: JSON.stringify(updatedProjects),
         })
       );
-
-      // Update stats
-      setStats((prev) => ({
-        ...prev,
-        totalProjects: prev.totalProjects + 1,
-      }));
 
       toast.success(
         `${template.name} project created successfully with ${template.tasks.length} tasks!`
@@ -354,16 +411,50 @@ export default function DashboardPage() {
     }
   };
 
+  // Calculate trend indicators
+  const getTrendIndicator = (current: number, type: string) => {
+    // For demo purposes, show positive trends when there's data
+    if (current === 0) {
+      return { text: 'No data yet', color: 'text-gray-500', icon: Clock };
+    }
+
+    // Show positive trends for active data
+    const trends = {
+      projects: {
+        text: '+2 this month',
+        color: 'text-green-600 dark:text-green-400',
+        icon: TrendingUp,
+      },
+      team: {
+        text: '+1 this week',
+        color: 'text-green-600 dark:text-green-400',
+        icon: TrendingUp,
+      },
+      tasks: {
+        text: `${Math.max(1, Math.floor(current * 0.2))} due today`,
+        color: 'text-orange-600 dark:text-orange-400',
+        icon: Activity,
+      },
+      efficiency: {
+        text: 'Efficiency',
+        color: 'text-green-600 dark:text-green-400',
+        icon: Zap,
+      },
+    };
+
+    return trends[type as keyof typeof trends] || trends.projects;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Welcome back, {user?.firstName || 'there'}! 👋
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 dark:text-gray-300 mt-1">
               Here's what's happening with your workspace today
             </p>
           </div>
@@ -377,88 +468,149 @@ export default function DashboardPage() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Total Projects
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.totalProjects}
                   </p>
-                  <p className="text-xs text-green-600 flex items-center mt-1">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    +2 this month
-                  </p>
+                  <div className="flex items-center mt-1">
+                    {(() => {
+                      const trend = getTrendIndicator(
+                        stats.totalProjects,
+                        'projects'
+                      );
+                      const TrendIcon = trend.icon;
+                      return (
+                        <>
+                          <TrendIcon
+                            className={`h-3 w-3 mr-1 ${trend.color}`}
+                          />
+                          <span className={`text-xs ${trend.color}`}>
+                            {trend.text}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <BarChart3 className="h-6 w-6 text-blue-600" />
+                <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <BarChart3 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Team Members
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.teamMembers}
                   </p>
-                  <p className="text-xs text-green-600 flex items-center mt-1">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    +1 this week
-                  </p>
+                  <div className="flex items-center mt-1">
+                    {(() => {
+                      const trend = getTrendIndicator(
+                        stats.teamMembers,
+                        'team'
+                      );
+                      const TrendIcon = trend.icon;
+                      return (
+                        <>
+                          <TrendIcon
+                            className={`h-3 w-3 mr-1 ${trend.color}`}
+                          />
+                          <span className={`text-xs ${trend.color}`}>
+                            {trend.text}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <Users className="h-6 w-6 text-purple-600" />
+                <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
+                  <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Active Tasks
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.activeTasks}
                   </p>
-                  <p className="text-xs text-orange-600 flex items-center mt-1">
-                    <Activity className="h-3 w-3 mr-1" />5 due today
-                  </p>
+                  <div className="flex items-center mt-1">
+                    {(() => {
+                      const trend = getTrendIndicator(
+                        stats.activeTasks,
+                        'tasks'
+                      );
+                      const TrendIcon = trend.icon;
+                      return (
+                        <>
+                          <TrendIcon
+                            className={`h-3 w-3 mr-1 ${trend.color}`}
+                          />
+                          <span className={`text-xs ${trend.color}`}>
+                            {trend.text}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="p-3 bg-orange-100 rounded-full">
-                  <Activity className="h-6 w-6 text-orange-600" />
+                <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full">
+                  <Activity className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Automation
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.efficiency}%
                   </p>
-                  <p className="text-xs text-green-600 flex items-center mt-1">
-                    <Zap className="h-3 w-3 mr-1" />
-                    Efficiency
-                  </p>
+                  <div className="flex items-center mt-1">
+                    {(() => {
+                      const trend = getTrendIndicator(
+                        stats.efficiency,
+                        'efficiency'
+                      );
+                      const TrendIcon = trend.icon;
+                      return (
+                        <>
+                          <TrendIcon
+                            className={`h-3 w-3 mr-1 ${trend.color}`}
+                          />
+                          <span className={`text-xs ${trend.color}`}>
+                            {trend.text}
+                          </span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <div className="p-3 bg-teal-100 rounded-full">
-                  <Zap className="h-6 w-6 text-teal-600" />
+                <div className="p-3 bg-teal-100 dark:bg-teal-900 rounded-full">
+                  <Zap className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                 </div>
               </div>
             </CardContent>
@@ -469,12 +621,14 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Recent Activity */}
           <div className="lg:col-span-2">
-            <Card className="border-0 shadow-lg">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-gray-900 dark:text-white">
+                      Recent Activity
+                    </CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">
                       Your latest workspace updates
                     </CardDescription>
                   </div>
@@ -482,6 +636,7 @@ export default function DashboardPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => window.location.reload()}
+                    className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     <Activity className="h-4 w-4 mr-2" />
                     Refresh
@@ -495,25 +650,28 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={item.id}
-                        className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                        className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                       >
                         <div
-                          className={`p-2 rounded-full ${item.color || 'bg-gray-100'}`}
+                          className={`p-2 rounded-full ${item.color || 'bg-gray-100 dark:bg-gray-800'}`}
                         >
-                          <IconComponent className="h-4 w-4 text-gray-600" />
+                          <IconComponent className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
                             {item.title}
                           </h4>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
                             {item.description}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                             {item.time}
                           </p>
                         </div>
-                        <Badge variant="outline" className="text-xs capitalize">
+                        <Badge
+                          variant="outline"
+                          className="text-xs capitalize border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                        >
                           {item.type}
                         </Badge>
                       </div>
@@ -521,9 +679,11 @@ export default function DashboardPage() {
                   })
                 ) : (
                   <div className="text-center py-8">
-                    <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No recent activity</p>
-                    <p className="text-sm text-gray-400">
+                    <Activity className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No recent activity
+                    </p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">
                       Start by creating a project or inviting team members
                     </p>
                   </div>
@@ -535,15 +695,22 @@ export default function DashboardPage() {
           {/* Quick Actions & Status */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <Card className="border-0 shadow-lg">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common tasks and shortcuts</CardDescription>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Quick Actions
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Common tasks and shortcuts
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <NewProjectModal
                   trigger={
-                    <Button variant="outline" className="w-full justify-start">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Create New Project
                     </Button>
@@ -553,7 +720,10 @@ export default function DashboardPage() {
                 <InviteTeamModal />
 
                 <Link href="/workspace-settings">
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
                     <Settings className="h-4 w-4 mr-2" />
                     Workspace Settings
                   </Button>
@@ -562,7 +732,7 @@ export default function DashboardPage() {
                 <Link href="/analytics">
                   <Button
                     variant="outline"
-                    className="w-full justify-start mt-3"
+                    className="w-full justify-start border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 mt-3"
                   >
                     <BarChart3 className="h-4 w-4 mr-2" />
                     View Analytics
@@ -572,10 +742,12 @@ export default function DashboardPage() {
             </Card>
 
             {/* Project Templates */}
-            <Card className="border-0 shadow-lg">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Project Templates</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Project Templates
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
                   Quick start with pre-built templates
                 </CardDescription>
               </CardHeader>
@@ -588,19 +760,19 @@ export default function DashboardPage() {
                         key={template.id}
                         onClick={() => createProjectFromTemplate(template)}
                         disabled={isCreatingProject}
-                        className="p-4 border-2 rounded-lg text-center hover:bg-gray-50 hover:border-blue-300 transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed group"
+                        className="p-4 border-2 rounded-lg text-center hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed group border-gray-200 dark:border-gray-600"
                       >
                         <div className="flex flex-col items-center space-y-2">
-                          <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-blue-100 transition-colors">
+                          <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900 transition-colors">
                             <IconComponent
-                              className={`h-6 w-6 ${template.color} group-hover:text-blue-600 transition-colors`}
+                              className={`h-6 w-6 ${template.color} group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors`}
                             />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {template.name}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {template.tasks.length} tasks
                             </p>
                           </div>
@@ -610,22 +782,22 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                <div className="pt-3 border-t">
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-gray-900">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">
                       Template Features:
                     </h4>
-                    <div className="text-xs text-gray-600 space-y-1">
+                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
                         <span>Pre-configured task lists</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
                         <span>Industry best practices</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-400" />
                         <span>Ready-to-use workflows</span>
                       </div>
                     </div>
@@ -635,35 +807,56 @@ export default function DashboardPage() {
             </Card>
 
             {/* Subscription Status */}
-            <Card className="border-0 shadow-lg">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Subscription Status</CardTitle>
-                <CardDescription>Your current plan details</CardDescription>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Subscription Status
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Your current plan details
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Current Plan</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Current Plan
+                    </span>
                     <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
                       Professional
                     </Badge>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Team members</span>
-                      <span>{stats.teamMembers} / 25</span>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Team members
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        {stats.teamMembers} / 25
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Storage used</span>
-                      <span>24GB / 100GB</span>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Storage used
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        24GB / 100GB
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Next billing</span>
-                      <span>July 15, 2025</span>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Next billing
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        July 15, 2025
+                      </span>
                     </div>
                   </div>
                   <Link href="/subscription">
-                    <Button variant="outline" className="w-full">
+                    <Button
+                      variant="outline"
+                      className="w-full border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
                       Manage Subscription
                     </Button>
                   </Link>

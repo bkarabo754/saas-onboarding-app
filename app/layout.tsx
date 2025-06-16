@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SaaS Onboarding - Get Started',
+  title: 'OnboardIQ',
   description: 'Intelligent onboarding experience for modern SaaS',
 };
 
@@ -21,7 +21,7 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <body className={inter.className}>
           {children}
-          <Toaster richColors />
+          <Toaster position="top-right" richColors />
         </body>
       </html>
     </ClerkProvider>

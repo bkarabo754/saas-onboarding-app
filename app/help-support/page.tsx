@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Dialog,
   DialogContent,
@@ -31,296 +32,356 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import {
   HelpCircle,
-  MessageCircle,
-  Book,
+  MessageSquare,
+  Phone,
+  Calendar as CalendarIcon,
+  Clock,
+  User,
+  Mail,
+  CheckCircle,
+  ArrowLeft,
   Video,
+  FileText,
   Search,
   Send,
-  Phone,
-  Mail,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Star,
-  ThumbsUp,
-  ThumbsDown,
-  ExternalLink,
-  Download,
-  PlayCircle,
-  FileText,
-  Users,
-  Zap,
-  Settings,
-  CreditCard,
-  Shield,
   Loader2,
+  Star,
   ChevronRight,
-  Globe,
+  BookOpen,
   Headphones,
-  Calendar,
-  MessageSquare,
-  Lightbulb,
-  Target,
-  Rocket,
+  Zap,
+  Shield,
+  Globe,
+  Users,
+  type LucideIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import {
+  format,
+  addDays,
+  isSameDay,
+  isAfter,
+  isBefore,
+  startOfDay,
+} from 'date-fns';
 
-interface FAQ {
-  id: string;
-  question: string;
-  answer: string;
-  category: string;
-  helpful: number;
-  notHelpful: number;
+interface TimeSlot {
+  time: string;
+  available: boolean;
+  timezone: string;
 }
 
-interface SupportTicket {
-  id: string;
-  subject: string;
-  status: 'open' | 'in-progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  createdAt: string;
-  lastUpdate: string;
-  category: string;
+interface BookingData {
+  date: Date;
+  time: string;
+  type: 'support' | 'onboarding' | 'technical' | 'sales';
+  name: string;
+  email: string;
+  company: string;
+  phone: string;
+  topic: string;
+  description: string;
+  timezone: string;
 }
 
-interface Resource {
+interface CallType {
   id: string;
+  name: string;
+  description: string;
+  duration: string;
+  icon: LucideIcon;
+  color: string;
+}
+
+interface SupportArticle {
   title: string;
   description: string;
-  type: 'guide' | 'video' | 'tutorial' | 'webinar';
-  duration?: string;
   category: string;
-  url: string;
-  popular: boolean;
+  readTime: string;
+  icon: LucideIcon;
 }
+
+const CALL_TYPES: CallType[] = [
+  {
+    id: 'support',
+    name: 'General Support',
+    description: 'Get help with your account, billing, or general questions',
+    duration: '30 minutes',
+    icon: HelpCircle,
+    color: 'bg-blue-100 text-blue-800',
+  },
+  {
+    id: 'onboarding',
+    name: 'Onboarding Call',
+    description: 'Personalized setup and training session',
+    duration: '45 minutes',
+    icon: Users,
+    color: 'bg-green-100 text-green-800',
+  },
+  {
+    id: 'technical',
+    name: 'Technical Support',
+    description: 'Advanced technical assistance and troubleshooting',
+    duration: '60 minutes',
+    icon: Zap,
+    color: 'bg-purple-100 text-purple-800',
+  },
+  {
+    id: 'sales',
+    name: 'Sales Consultation',
+    description: 'Discuss pricing, features, and custom solutions',
+    duration: '30 minutes',
+    icon: Phone,
+    color: 'bg-orange-100 text-orange-800',
+  },
+];
+
+const FAQ_ITEMS = [
+  {
+    question: 'How do I reset my password?',
+    answer:
+      'You can reset your password by clicking the "Forgot Password" link on the login page. We\'ll send you a secure reset link via email.',
+    category: 'Account',
+  },
+  {
+    question: 'How do I upgrade my subscription?',
+    answer:
+      'Go to Settings > Subscription and click "Upgrade Plan". You can choose from our Starter, Professional, or Enterprise plans.',
+    category: 'Billing',
+  },
+  {
+    question: 'Can I invite team members?',
+    answer:
+      'Yes! Go to your workspace settings and click "Invite Team Members". You can assign different roles and permissions.',
+    category: 'Team',
+  },
+  {
+    question: 'How do I export my data?',
+    answer:
+      'Navigate to Settings > Privacy & Security > Data Export. You can download a comprehensive PDF report of all your data.',
+    category: 'Data',
+  },
+  {
+    question: 'What integrations are available?',
+    answer:
+      'We support integrations with Slack, Microsoft Teams, Google Workspace, Trello, GitHub, and many more through our API.',
+    category: 'Integrations',
+  },
+  {
+    question: 'Is my data secure?',
+    answer:
+      'Absolutely! We use enterprise-grade encryption, regular security audits, and comply with SOC 2 Type II standards.',
+    category: 'Security',
+  },
+];
+
+const SUPPORT_ARTICLES: SupportArticle[] = [
+  {
+    title: 'Getting Started Guide',
+    description: 'Complete walkthrough of setting up your workspace',
+    category: 'Getting Started',
+    readTime: '5 min read',
+    icon: BookOpen,
+  },
+  {
+    title: 'Team Management Best Practices',
+    description: 'How to effectively manage and organize your team',
+    category: 'Team Management',
+    readTime: '8 min read',
+    icon: Users,
+  },
+  {
+    title: 'API Documentation',
+    description: 'Complete API reference and integration examples',
+    category: 'Developers',
+    readTime: '15 min read',
+    icon: FileText,
+  },
+  {
+    title: 'Security & Compliance',
+    description: 'Understanding our security measures and compliance',
+    category: 'Security',
+    readTime: '6 min read',
+    icon: Shield,
+  },
+  {
+    title: 'Troubleshooting Common Issues',
+    description: 'Solutions to frequently encountered problems',
+    category: 'Troubleshooting',
+    readTime: '10 min read',
+    icon: Headphones,
+  },
+  {
+    title: 'Advanced Features Guide',
+    description: 'Unlock the full potential of our platform',
+    category: 'Advanced',
+    readTime: '12 min read',
+    icon: Zap,
+  },
+];
+
+// Generate time slots for a given date
+const generateTimeSlots = (date: Date): TimeSlot[] => {
+  const slots: TimeSlot[] = [];
+  const startHour = 9; // 9 AM
+  const endHour = 17; // 5 PM
+
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
+      // Simulate some unavailable slots
+      const isUnavailable = Math.random() < 0.3; // 30% chance of being unavailable
+
+      slots.push({
+        time: timeString,
+        available: !isUnavailable,
+        timezone: 'EST',
+      });
+    }
+  }
+
+  return slots;
+};
 
 export default function HelpSupportPage() {
   const { user } = useUser();
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('faq');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Booking state
+  const [selectedCallType, setSelectedCallType] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [bookingData, setBookingData] = useState<BookingData>({
+    date: new Date(),
+    time: '',
+    type: 'support',
+    name: '',
+    email: '',
+    company: '',
+    phone: '',
+    topic: '',
+    description: '',
+    timezone: 'EST',
+  });
+  const [confirmedBooking, setConfirmedBooking] = useState<BookingData | null>(
+    null
+  );
+
+  // Contact form state
   const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
     subject: '',
-    category: 'general',
+    message: '',
     priority: 'medium',
-    description: '',
-    attachments: [],
   });
 
-  const [feedbackForm, setFeedbackForm] = useState({
-    type: 'suggestion',
-    rating: 5,
-    title: '',
-    description: '',
-  });
-
-  const faqs: FAQ[] = [
-    {
-      id: '1',
-      question: 'How do I create a new project?',
-      answer:
-        'To create a new project, click the "New Project" button in your dashboard, choose a template, fill in the project details, and click "Create Project". You can also use our pre-built templates for faster setup.',
-      category: 'projects',
-      helpful: 45,
-      notHelpful: 2,
-    },
-    {
-      id: '2',
-      question: 'How do I invite team members to my workspace?',
-      answer:
-        'Go to your workspace settings, click on the "Team" tab, and click "Add Member". Enter their email address, select their role, and send the invitation. They will receive an email to join your workspace.',
-      category: 'team',
-      helpful: 38,
-      notHelpful: 1,
-    },
-    {
-      id: '3',
-      question: 'What payment methods do you accept?',
-      answer:
-        'We accept all major credit cards (Visa, MasterCard, American Express), PayPal, and bank transfers for enterprise customers. All payments are processed securely through Stripe.',
-      category: 'billing',
-      helpful: 52,
-      notHelpful: 3,
-    },
-    {
-      id: '4',
-      question: 'How do I upgrade my subscription plan?',
-      answer:
-        'Visit the Subscription page in your account settings, select the plan you want to upgrade to, and follow the checkout process. Your new features will be available immediately.',
-      category: 'billing',
-      helpful: 41,
-      notHelpful: 1,
-    },
-    {
-      id: '5',
-      question: 'Is my data secure?',
-      answer:
-        'Yes, we take security seriously. All data is encrypted in transit and at rest, we use industry-standard security practices, and we are SOC 2 compliant. You can also enable two-factor authentication for additional security.',
-      category: 'security',
-      helpful: 67,
-      notHelpful: 0,
-    },
-    {
-      id: '6',
-      question: 'How do I set up integrations?',
-      answer:
-        'Go to Workspace Settings > Integrations tab. You can connect with popular tools like Slack, Google Workspace, and more. Click "Connect" next to the service you want to integrate and follow the authorization process.',
-      category: 'integrations',
-      helpful: 29,
-      notHelpful: 4,
-    },
-  ];
-
-  const supportTickets: SupportTicket[] = [
-    {
-      id: 'TICK-001',
-      subject: 'Unable to upload files larger than 10MB',
-      status: 'in-progress',
-      priority: 'medium',
-      createdAt: '2024-01-15T10:30:00Z',
-      lastUpdate: '2024-01-15T14:20:00Z',
-      category: 'technical',
-    },
-    {
-      id: 'TICK-002',
-      subject: 'Question about enterprise pricing',
-      status: 'resolved',
-      priority: 'low',
-      createdAt: '2024-01-14T09:15:00Z',
-      lastUpdate: '2024-01-14T16:45:00Z',
-      category: 'billing',
-    },
-    {
-      id: 'TICK-003',
-      subject: 'Feature request: Dark mode',
-      status: 'open',
-      priority: 'low',
-      createdAt: '2024-01-13T11:20:00Z',
-      lastUpdate: '2024-01-13T11:20:00Z',
-      category: 'feature',
-    },
-  ];
-
-  const resources: Resource[] = [
-    {
-      id: '1',
-      title: 'Getting Started Guide',
-      description:
-        'Complete walkthrough of setting up your workspace and creating your first project',
-      type: 'guide',
-      category: 'getting-started',
-      url: '#',
-      popular: true,
-    },
-    {
-      id: '2',
-      title: 'Team Collaboration Best Practices',
-      description:
-        'Learn how to effectively collaborate with your team using our platform',
-      type: 'video',
-      duration: '15 min',
-      category: 'collaboration',
-      url: '#',
-      popular: true,
-    },
-    {
-      id: '3',
-      title: 'Advanced Project Management',
-      description: 'Master advanced features for complex project management',
-      type: 'tutorial',
-      duration: '25 min',
-      category: 'projects',
-      url: '#',
-      popular: false,
-    },
-    {
-      id: '4',
-      title: 'Security and Privacy Webinar',
-      description: 'Understanding our security features and privacy controls',
-      type: 'webinar',
-      duration: '45 min',
-      category: 'security',
-      url: '#',
-      popular: true,
-    },
-    {
-      id: '5',
-      title: 'API Documentation',
-      description: 'Complete reference for our REST API and webhooks',
-      type: 'guide',
-      category: 'developers',
-      url: '#',
-      popular: false,
-    },
-    {
-      id: '6',
-      title: 'Billing and Subscription Management',
-      description:
-        'How to manage your subscription, billing, and payment methods',
-      type: 'guide',
-      category: 'billing',
-      url: '#',
-      popular: true,
-    },
-  ];
-
-  const categories = [
-    { value: 'all', label: 'All Categories' },
-    { value: 'getting-started', label: 'Getting Started' },
-    { value: 'projects', label: 'Projects' },
-    { value: 'team', label: 'Team Management' },
-    { value: 'billing', label: 'Billing & Subscriptions' },
-    { value: 'security', label: 'Security & Privacy' },
-    { value: 'integrations', label: 'Integrations' },
-    { value: 'developers', label: 'Developers' },
-  ];
-
-  const filteredFAQs = faqs.filter((faq) => {
+  // Filter FAQ items
+  const filteredFAQ = FAQ_ITEMS.filter((item) => {
     const matchesSearch =
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
+      item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.answer.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
-      selectedCategory === 'all' || faq.category === selectedCategory;
+      selectedCategory === 'all' ||
+      item.category.toLowerCase() === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const filteredResources = resources.filter((resource) => {
+  // Filter support articles
+  const filteredArticles = SUPPORT_ARTICLES.filter((article) => {
     const matchesSearch =
-      resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      resource.description.toLowerCase().includes(searchQuery.toLowerCase());
+      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      article.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory =
-      selectedCategory === 'all' || resource.category === selectedCategory;
+      selectedCategory === 'all' ||
+      article.category.toLowerCase() === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const handleSubmitContact = async () => {
-    if (!contactForm.subject || !contactForm.description) {
+  // Handle date selection
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date);
+      setSelectedTime('');
+      setAvailableSlots(generateTimeSlots(date));
+      setBookingData((prev) => ({ ...prev, date }));
+    }
+  };
+
+  // Handle time selection
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
+    setBookingData((prev) => ({ ...prev, time }));
+  };
+
+  // Handle call type selection
+  const handleCallTypeSelect = (typeId: string) => {
+    setSelectedCallType(typeId);
+    setBookingData((prev) => ({
+      ...prev,
+      type: typeId as BookingData['type'],
+    }));
+  };
+
+  // Initialize booking modal
+  const initializeBooking = (callType: string = 'support') => {
+    setSelectedCallType(callType);
+    setBookingData((prev) => ({
+      ...prev,
+      type: callType as BookingData['type'],
+      name: user?.fullName || '',
+      email: user?.emailAddresses[0]?.emailAddress || '',
+    }));
+    setSelectedDate(undefined);
+    setSelectedTime('');
+    setAvailableSlots([]);
+    setShowBookingModal(true);
+  };
+
+  // Submit booking
+  const handleBookingSubmit = async () => {
+    if (
+      !selectedDate ||
+      !selectedTime ||
+      !bookingData.name ||
+      !bookingData.email
+    ) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
+
     try {
+      // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
+      const finalBookingData = {
+        ...bookingData,
+        date: selectedDate,
+        time: selectedTime,
+      };
+
+      setConfirmedBooking(finalBookingData);
+
       // Add notification
+      const selectedCallTypeData = CALL_TYPES.find(
+        (t) => t.id === bookingData.type
+      );
       const notification = {
         id: Date.now().toString(),
         type: 'support',
-        title: 'Support Ticket Created',
-        message: `Your support ticket "${contactForm.subject}" has been submitted successfully`,
+        title: 'Call Scheduled Successfully',
+        message: `Your ${selectedCallTypeData?.name || 'support'} call is scheduled for ${format(selectedDate, 'MMMM d, yyyy')} at ${selectedTime}`,
         timestamp: new Date(),
         read: false,
         link: '/help-support',
@@ -334,184 +395,197 @@ export default function HelpSupportPage() {
         JSON.stringify([notification, ...existingNotifications])
       );
 
-      toast.success(
-        "Support ticket submitted successfully! We'll get back to you soon."
-      );
-      setShowContactModal(false);
-      setContactForm({
-        subject: '',
-        category: 'general',
-        priority: 'medium',
-        description: '',
-        attachments: [],
-      });
+      setShowBookingModal(false);
+      setShowSuccessModal(true);
+      toast.success('Call scheduled successfully!');
     } catch (error) {
-      toast.error('Failed to submit support ticket');
+      toast.error('Failed to schedule call. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleSubmitFeedback = async () => {
-    if (!feedbackForm.title || !feedbackForm.description) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
+  // Submit contact form
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-    setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      toast.success('Thank you for your feedback! We appreciate your input.');
-      setShowFeedbackModal(false);
-      setFeedbackForm({
-        type: 'suggestion',
-        rating: 5,
-        title: '',
-        description: '',
+      // Add notification
+      const notification = {
+        id: Date.now().toString(),
+        type: 'support',
+        title: 'Support Ticket Created',
+        message: `Your support request "${contactForm.subject}" has been submitted. We'll respond within 24 hours.`,
+        timestamp: new Date(),
+        read: false,
+        link: '/help-support',
+      };
+
+      const existingNotifications = JSON.parse(
+        localStorage.getItem('notifications') || '[]'
+      );
+      localStorage.setItem(
+        'notifications',
+        JSON.stringify([notification, ...existingNotifications])
+      );
+
+      toast.success('Support request submitted successfully!');
+      setContactForm({
+        name: '',
+        email: '',
+        subject: '',
+        message: '',
+        priority: 'medium',
       });
     } catch (error) {
-      toast.error('Failed to submit feedback');
+      toast.error('Failed to submit support request');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'open':
-        return 'bg-blue-100 text-blue-800';
-      case 'in-progress':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'resolved':
-        return 'bg-green-100 text-green-800';
-      case 'closed':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  // Check if date is available for booking
+  const isDateAvailable = (date: Date) => {
+    const today = startOfDay(new Date());
+    const maxDate = addDays(today, 30); // 30 days in advance
+    return isAfter(date, today) && isBefore(date, maxDate);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-red-100 text-red-800';
-      case 'high':
-        return 'bg-orange-100 text-orange-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getResourceIcon = (type: string) => {
-    switch (type) {
-      case 'guide':
-        return FileText;
-      case 'video':
-        return PlayCircle;
-      case 'tutorial':
-        return Book;
-      case 'webinar':
-        return Video;
-      default:
-        return FileText;
-    }
-  };
+  const categories = [
+    'all',
+    ...new Set([
+      ...FAQ_ITEMS.map((item) => item.category.toLowerCase()),
+      ...SUPPORT_ARTICLES.map((article) => article.category.toLowerCase()),
+    ]),
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8">
           <Link href="/dashboard">
-            <Button variant="outline" size="sm">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
               ← Back to Dashboard
             </Button>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <HelpCircle className="h-8 w-8" />
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <HelpCircle className="h-6 w-6 sm:h-8 sm:w-8" />
               Help & Support
             </h1>
-            <p className="text-gray-600 mt-1">
-              Get help, find answers, and contact our support team
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-1">
+              Get the help you need, when you need it
             </p>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card
-            className="border-0 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
-            onClick={() => setShowContactModal(true)}
+            className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            onClick={() => initializeBooking('support')}
           >
             <CardContent className="p-6 text-center">
-              <div className="p-3 bg-blue-100 rounded-full w-fit mx-auto mb-4">
-                <MessageCircle className="h-6 w-6 text-blue-600" />
+              <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full w-fit mx-auto mb-4">
+                <Phone className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="font-semibold mb-2">Contact Support</h3>
-              <p className="text-sm text-gray-600">
-                Get help from our support team
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-            <CardContent className="p-6 text-center">
-              <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
-                <Phone className="h-6 w-6 text-green-600" />
-              </div>
-              <h3 className="font-semibold mb-2">Schedule Call</h3>
-              <p className="text-sm text-gray-600">
-                Book a call with our experts
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                Schedule a Call
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Book a personalized support session
               </p>
             </CardContent>
           </Card>
 
           <Card
-            className="border-0 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
-            onClick={() => setShowFeedbackModal(true)}
+            className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            onClick={() => setActiveTab('contact')}
           >
             <CardContent className="p-6 text-center">
-              <div className="p-3 bg-purple-100 rounded-full w-fit mx-auto mb-4">
-                <Lightbulb className="h-6 w-6 text-purple-600" />
+              <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full w-fit mx-auto mb-4">
+                <MessageSquare className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
-              <h3 className="font-semibold mb-2">Send Feedback</h3>
-              <p className="text-sm text-gray-600">
-                Share your ideas and suggestions
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                Send Message
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Get help via email support
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            onClick={() => setActiveTab('articles')}
+          >
+            <CardContent className="p-6 text-center">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full w-fit mx-auto mb-4">
+                <BookOpen className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                Browse Articles
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Self-service documentation
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            onClick={() => setActiveTab('faq')}
+          >
+            <CardContent className="p-6 text-center">
+              <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full w-fit mx-auto mb-4">
+                <HelpCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              </div>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                FAQ
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Quick answers to common questions
               </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Search and Filter */}
-        <Card className="mb-8 border-0 shadow-lg">
+        <Card className="mb-8 border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search for help articles, guides, or FAQs..."
+                  placeholder="Search for help articles, FAQs, or topics..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                 />
               </div>
               <Select
                 value={selectedCategory}
                 onValueChange={setSelectedCategory}
               >
-                <SelectTrigger className="w-full md:w-48">
-                  <SelectValue />
+                <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                  <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                   {categories.map((category) => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
+                    <SelectItem
+                      key={category}
+                      value={category}
+                      className="capitalize"
+                    >
+                      {category === 'all' ? 'All Categories' : category}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -520,215 +594,145 @@ export default function HelpSupportPage() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="faq" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="faq">FAQ</TabsTrigger>
-            <TabsTrigger value="resources">Resources</TabsTrigger>
-            <TabsTrigger value="tickets">My Tickets</TabsTrigger>
-            <TabsTrigger value="contact">Contact</TabsTrigger>
+        {/* Main Content */}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <TabsTrigger
+              value="faq"
+              className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900 data-[state=active]:text-blue-900 dark:data-[state=active]:text-blue-100"
+            >
+              FAQ
+            </TabsTrigger>
+            <TabsTrigger
+              value="articles"
+              className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900 data-[state=active]:text-blue-900 dark:data-[state=active]:text-blue-100"
+            >
+              Articles
+            </TabsTrigger>
+            <TabsTrigger
+              value="contact"
+              className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900 data-[state=active]:text-blue-900 dark:data-[state=active]:text-blue-100"
+            >
+              Contact
+            </TabsTrigger>
+            <TabsTrigger
+              value="booking"
+              className="data-[state=active]:bg-blue-100 dark:data-[state=active]:bg-blue-900 data-[state=active]:text-blue-900 dark:data-[state=active]:text-blue-100"
+            >
+              Book Call
+            </TabsTrigger>
           </TabsList>
 
           {/* FAQ Tab */}
           <TabsContent value="faq" className="space-y-6">
-            <Card className="border-0 shadow-lg">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
-                <CardTitle>Frequently Asked Questions</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Frequently Asked Questions
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
                   Find quick answers to common questions
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Accordion type="single" collapsible className="space-y-4">
-                  {filteredFAQs.map((faq) => (
-                    <AccordionItem
-                      key={faq.id}
-                      value={faq.id}
-                      className="border rounded-lg px-4"
-                    >
-                      <AccordionTrigger className="text-left hover:no-underline">
-                        <div className="flex items-center justify-between w-full pr-4">
-                          <span className="font-medium">{faq.question}</span>
-                          <Badge variant="outline" className="ml-2 capitalize">
-                            {faq.category}
+                {filteredFAQ.length === 0 ? (
+                  <div className="text-center py-8">
+                    <HelpCircle className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No FAQ items match your search
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredFAQ.map((item, index) => (
+                      <div
+                        key={index}
+                        className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {item.question}
+                          </h4>
+                          <Badge
+                            variant="outline"
+                            className="ml-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                          >
+                            {item.category}
                           </Badge>
                         </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-4 pb-6">
-                        <p className="text-gray-600 mb-4">{faq.answer}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <span className="text-sm text-gray-500">
-                              Was this helpful?
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                              >
-                                <ThumbsUp className="h-3 w-3 mr-1" />
-                                {faq.helpful}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8"
-                              >
-                                <ThumbsDown className="h-3 w-3 mr-1" />
-                                {faq.notHelpful}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-
-                {filteredFAQs.length === 0 && (
-                  <div className="text-center py-8">
-                    <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      No FAQs found matching your search
-                    </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {item.answer}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Resources Tab */}
-          <TabsContent value="resources" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredResources.map((resource) => {
-                const ResourceIcon = getResourceIcon(resource.type);
-                return (
-                  <Card
-                    key={resource.id}
-                    className="border-0 shadow-lg hover:shadow-xl transition-shadow"
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <ResourceIcon className="h-5 w-5 text-blue-600" />
-                        </div>
-                        {resource.popular && (
-                          <Badge className="bg-orange-100 text-orange-800">
-                            <Star className="h-3 w-3 mr-1" />
-                            Popular
-                          </Badge>
-                        )}
-                      </div>
-
-                      <h3 className="font-semibold mb-2">{resource.title}</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        {resource.description}
-                      </p>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className="text-xs capitalize"
-                          >
-                            {resource.type}
-                          </Badge>
-                          {resource.duration && (
-                            <Badge variant="outline" className="text-xs">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {resource.duration}
-                            </Badge>
-                          )}
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {filteredResources.length === 0 && (
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-12 text-center">
-                  <Book className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">
-                    No resources found matching your search
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Support Tickets Tab */}
-          <TabsContent value="tickets" className="space-y-6">
-            <Card className="border-0 shadow-lg">
+          {/* Articles Tab */}
+          <TabsContent value="articles" className="space-y-6">
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>My Support Tickets</CardTitle>
-                    <CardDescription>
-                      Track your support requests and their status
-                    </CardDescription>
-                  </div>
-                  <Button onClick={() => setShowContactModal(true)}>
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    New Ticket
-                  </Button>
-                </div>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Help Articles
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Comprehensive guides and documentation
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {supportTickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{ticket.subject}</h4>
-                            <Badge className={getStatusColor(ticket.status)}>
-                              {ticket.status.replace('-', ' ')}
-                            </Badge>
-                            <Badge
-                              className={getPriorityColor(ticket.priority)}
-                            >
-                              {ticket.priority}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-600">
-                            Ticket #{ticket.id}
-                          </p>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>
-                          Created:{' '}
-                          {new Date(ticket.createdAt).toLocaleDateString()}
-                        </span>
-                        <span>
-                          Last update:{' '}
-                          {new Date(ticket.lastUpdate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {supportTickets.length === 0 && (
+                {filteredArticles.length === 0 ? (
                   <div className="text-center py-8">
-                    <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-4">No support tickets yet</p>
-                    <Button onClick={() => setShowContactModal(true)}>
-                      Create Your First Ticket
-                    </Button>
+                    <BookOpen className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No articles match your search
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredArticles.map((article, index) => {
+                      const IconComponent = article.icon;
+                      return (
+                        <div
+                          key={index}
+                          className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white dark:bg-gray-800"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                              <IconComponent className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-gray-900 dark:text-white">
+                                  {article.title}
+                                </h4>
+                                <ChevronRight className="h-4 w-4 text-gray-400" />
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                {article.description}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                                >
+                                  {article.category}
+                                </Badge>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {article.readTime}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -737,359 +741,521 @@ export default function HelpSupportPage() {
 
           {/* Contact Tab */}
           <TabsContent value="contact" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle>Contact Information</CardTitle>
-                  <CardDescription>
-                    Multiple ways to get in touch with our team
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Mail className="h-5 w-5 text-blue-600" />
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Contact Support
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Send us a message and we'll get back to you within 24 hours
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleContactSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label
+                        htmlFor="contact-name"
+                        className="text-gray-700 dark:text-gray-300"
+                      >
+                        Name *
+                      </Label>
+                      <Input
+                        id="contact-name"
+                        value={contactForm.name}
+                        onChange={(e) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                        placeholder="Your full name"
+                        required
+                        className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
                     </div>
                     <div>
-                      <h4 className="font-medium">Email Support</h4>
-                      <p className="text-sm text-gray-600">
-                        support@example.com
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Response within 24 hours
-                      </p>
+                      <Label
+                        htmlFor="contact-email"
+                        className="text-gray-700 dark:text-gray-300"
+                      >
+                        Email *
+                      </Label>
+                      <Input
+                        id="contact-email"
+                        type="email"
+                        value={contactForm.email}
+                        onChange={(e) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
+                        placeholder="your@email.com"
+                        required
+                        className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <Phone className="h-5 w-5 text-green-600" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label
+                        htmlFor="contact-subject"
+                        className="text-gray-700 dark:text-gray-300"
+                      >
+                        Subject *
+                      </Label>
+                      <Input
+                        id="contact-subject"
+                        value={contactForm.subject}
+                        onChange={(e) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            subject: e.target.value,
+                          }))
+                        }
+                        placeholder="Brief description of your issue"
+                        required
+                        className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                      />
                     </div>
                     <div>
-                      <h4 className="font-medium">Phone Support</h4>
-                      <p className="text-sm text-gray-600">+1 (555) 123-4567</p>
-                      <p className="text-xs text-gray-500">
-                        Mon-Fri, 9 AM - 6 PM EST
-                      </p>
+                      <Label
+                        htmlFor="contact-priority"
+                        className="text-gray-700 dark:text-gray-300"
+                      >
+                        Priority
+                      </Label>
+                      <Select
+                        value={contactForm.priority}
+                        onValueChange={(value) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            priority: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <MessageSquare className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Live Chat</h4>
-                      <p className="text-sm text-gray-600">Available 24/7</p>
-                      <p className="text-xs text-gray-500">Instant responses</p>
-                    </div>
+                  <div>
+                    <Label
+                      htmlFor="contact-message"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Message *
+                    </Label>
+                    <Textarea
+                      id="contact-message"
+                      value={contactForm.message}
+                      onChange={(e) =>
+                        setContactForm((prev) => ({
+                          ...prev,
+                          message: e.target.value,
+                        }))
+                      }
+                      placeholder="Please describe your issue in detail..."
+                      required
+                      rows={6}
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    />
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 border rounded-lg">
-                    <div className="p-2 bg-orange-100 rounded-lg">
-                      <Calendar className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Schedule a Call</h4>
-                      <p className="text-sm text-gray-600">
-                        Book a consultation
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        For complex issues
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  >
+                    {isSubmitting && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Message
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <Card className="border-0 shadow-lg">
-                <CardHeader>
-                  <CardTitle>Support Hours</CardTitle>
-                  <CardDescription>
-                    When our team is available to help
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Email Support</span>
-                      <Badge className="bg-green-100 text-green-800">
-                        24/7
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Live Chat</span>
-                      <Badge className="bg-green-100 text-green-800">
-                        24/7
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Phone Support</span>
-                      <Badge className="bg-blue-100 text-blue-800">
-                        Business Hours
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">Business Hours</h4>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex justify-between">
-                        <span>Monday - Friday</span>
-                        <span>9:00 AM - 6:00 PM EST</span>
+          {/* Booking Tab */}
+          <TabsContent value="booking" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {CALL_TYPES.map((callType) => {
+                const IconComponent = callType.icon;
+                return (
+                  <Card
+                    key={callType.id}
+                    className="border-0 shadow-lg hover:shadow-xl transition-all cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                    onClick={() => initializeBooking(callType.id)}
+                  >
+                    <CardContent className="p-6 text-center">
+                      <div className="p-3 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 rounded-full w-fit mx-auto mb-4">
+                        <IconComponent className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                       </div>
-                      <div className="flex justify-between">
-                        <span>Saturday</span>
-                        <span>10:00 AM - 4:00 PM EST</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sunday</span>
-                        <span>Closed</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">Emergency Support</h4>
-                    <p className="text-sm text-gray-600">
-                      For critical issues affecting your business operations,
-                      contact our emergency line at +1 (555) 999-0000
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                      <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                        {callType.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        {callType.description}
+                      </p>
+                      <Badge className={callType.color}>
+                        {callType.duration}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
+
+            <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-gray-900 dark:text-white">
+                  Schedule Your Call
+                </CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
+                  Choose a call type above to get started with booking
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <CalendarIcon className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    Select a call type to begin scheduling
+                  </p>
+                  <Button
+                    onClick={() => initializeBooking('support')}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  >
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    Schedule Support Call
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
-        {/* Contact Support Modal */}
-        <Dialog open={showContactModal} onOpenChange={setShowContactModal}>
-          <DialogContent className="sm:max-w-lg">
+        {/* Booking Modal */}
+        <Dialog open={showBookingModal} onOpenChange={setShowBookingModal}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                Contact Support
+                <CalendarIcon className="h-5 w-5" />
+                Schedule Your Call
               </DialogTitle>
               <DialogDescription>
-                Describe your issue and we'll get back to you as soon as
-                possible
+                Book a personalized session with our support team
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="subject">Subject *</Label>
-                <Input
-                  id="subject"
-                  value={contactForm.subject}
-                  onChange={(e) =>
-                    setContactForm((prev) => ({
-                      ...prev,
-                      subject: e.target.value,
-                    }))
-                  }
-                  placeholder="Brief description of your issue"
-                  className="mt-1"
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column - Calendar and Time Slots */}
+              <div className="space-y-6">
                 <div>
-                  <Label>Category</Label>
-                  <Select
-                    value={contactForm.category}
-                    onValueChange={(value) =>
-                      setContactForm((prev) => ({ ...prev, category: value }))
-                    }
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General Question</SelectItem>
-                      <SelectItem value="technical">Technical Issue</SelectItem>
-                      <SelectItem value="billing">
-                        Billing & Payments
-                      </SelectItem>
-                      <SelectItem value="feature">Feature Request</SelectItem>
-                      <SelectItem value="bug">Bug Report</SelectItem>
-                      <SelectItem value="security">Security Concern</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+                    Select Date
+                  </h3>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleDateSelect}
+                    disabled={(date) => !isDateAvailable(date)}
+                    className="rounded-md border border-gray-200 dark:border-gray-600"
+                  />
                 </div>
 
+                {selectedDate && availableSlots.length > 0 && (
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+                      Available Times - {format(selectedDate, 'MMMM d, yyyy')}
+                    </h3>
+                    <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                      {availableSlots.map((slot) => (
+                        <Button
+                          key={slot.time}
+                          variant={
+                            selectedTime === slot.time ? 'default' : 'outline'
+                          }
+                          size="sm"
+                          disabled={!slot.available}
+                          onClick={() => handleTimeSelect(slot.time)}
+                          className={`text-xs ${selectedTime === slot.time ? 'bg-blue-600 text-white' : ''}`}
+                        >
+                          {slot.time}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column - Booking Form */}
+              <div className="space-y-4">
                 <div>
-                  <Label>Priority</Label>
-                  <Select
-                    value={contactForm.priority}
-                    onValueChange={(value) =>
-                      setContactForm((prev) => ({ ...prev, priority: value }))
-                    }
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+                    Call Details
+                  </h3>
+                  {selectedCallType && (
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded-lg mb-4">
+                      {(() => {
+                        const callTypeData = CALL_TYPES.find(
+                          (t) => t.id === selectedCallType
+                        );
+                        if (!callTypeData) return null;
+                        const IconComponent = callTypeData.icon;
+                        return (
+                          <>
+                            <div className="flex items-center gap-2 mb-2">
+                              <IconComponent className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                              <h4 className="font-medium text-blue-900 dark:text-blue-100">
+                                {callTypeData.name}
+                              </h4>
+                            </div>
+                            <p className="text-sm text-blue-800 dark:text-blue-200">
+                              {callTypeData.description}
+                            </p>
+                            <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                              Duration: {callTypeData.duration}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <div>
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  value={contactForm.description}
-                  onChange={(e) =>
-                    setContactForm((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  placeholder="Please provide as much detail as possible about your issue..."
-                  className="mt-1"
-                  rows={4}
-                />
-              </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <Label htmlFor="booking-name">Name *</Label>
+                    <Input
+                      id="booking-name"
+                      value={bookingData.name}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="Your full name"
+                      className="mt-1"
+                    />
+                  </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">
-                  Before submitting:
-                </h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Check our FAQ section for quick answers</li>
-                  <li>• Include steps to reproduce the issue</li>
-                  <li>• Mention your browser and operating system</li>
-                  <li>• Attach screenshots if relevant</li>
-                </ul>
+                  <div>
+                    <Label htmlFor="booking-email">Email *</Label>
+                    <Input
+                      id="booking-email"
+                      type="email"
+                      value={bookingData.email}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      placeholder="your@email.com"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="booking-company">Company</Label>
+                    <Input
+                      id="booking-company"
+                      value={bookingData.company}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          company: e.target.value,
+                        }))
+                      }
+                      placeholder="Your company name"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="booking-phone">Phone</Label>
+                    <Input
+                      id="booking-phone"
+                      value={bookingData.phone}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          phone: e.target.value,
+                        }))
+                      }
+                      placeholder="Your phone number"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="booking-topic">Topic</Label>
+                    <Input
+                      id="booking-topic"
+                      value={bookingData.topic}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          topic: e.target.value,
+                        }))
+                      }
+                      placeholder="What would you like to discuss?"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="booking-description">
+                      Additional Details
+                    </Label>
+                    <Textarea
+                      id="booking-description"
+                      value={bookingData.description}
+                      onChange={(e) =>
+                        setBookingData((prev) => ({
+                          ...prev,
+                          description: e.target.value,
+                        }))
+                      }
+                      placeholder="Any additional information or questions..."
+                      rows={3}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
+
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setShowContactModal(false)}
+                onClick={() => setShowBookingModal(false)}
               >
                 Cancel
               </Button>
               <Button
-                onClick={handleSubmitContact}
-                disabled={isLoading}
+                onClick={handleBookingSubmit}
+                disabled={
+                  isSubmitting ||
+                  !selectedDate ||
+                  !selectedTime ||
+                  !bookingData.name ||
+                  !bookingData.email
+                }
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <Send className="h-4 w-4 mr-2" />
-                Submit Ticket
+                {isSubmitting && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Schedule Call
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Feedback Modal */}
-        <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5" />
-                Send Feedback
+        {/* Success Modal - Fixed with proper border radius and no scrollbar */}
+        <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+          <DialogContent className="sm:max-w-lg rounded-lg">
+            <DialogHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+              </div>
+              <DialogTitle className="text-xl text-green-700 dark:text-green-300">
+                Call Scheduled Successfully!
               </DialogTitle>
-              <DialogDescription>
-                Help us improve by sharing your thoughts and suggestions
+              <DialogDescription className="text-green-600 dark:text-green-400">
+                Your appointment has been confirmed
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Feedback Type</Label>
-                <Select
-                  value={feedbackForm.type}
-                  onValueChange={(value) =>
-                    setFeedbackForm((prev) => ({ ...prev, type: value }))
-                  }
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="suggestion">Suggestion</SelectItem>
-                    <SelectItem value="improvement">Improvement</SelectItem>
-                    <SelectItem value="compliment">Compliment</SelectItem>
-                    <SelectItem value="complaint">Complaint</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div>
-                <Label>Overall Rating</Label>
-                <div className="flex items-center gap-1 mt-2">
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <button
-                      key={rating}
-                      onClick={() =>
-                        setFeedbackForm((prev) => ({ ...prev, rating }))
-                      }
-                      className={`p-1 rounded ${
-                        rating <= feedbackForm.rating
-                          ? 'text-yellow-500'
-                          : 'text-gray-300'
-                      }`}
-                    >
-                      <Star className="h-6 w-6 fill-current" />
-                    </button>
-                  ))}
+            {confirmedBooking && (
+              <div className="space-y-4">
+                {/* Booking Summary */}
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <CalendarIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <div>
+                        <p className="font-medium text-green-900 dark:text-green-100">
+                          {format(confirmedBooking.date, 'EEEE, MMMM d, yyyy')}
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          {confirmedBooking.time} {confirmedBooking.timezone}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Video className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <div>
+                        <p className="font-medium text-green-900 dark:text-green-100">
+                          {
+                            CALL_TYPES.find(
+                              (t) => t.id === confirmedBooking.type
+                            )?.name
+                          }
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          Duration:{' '}
+                          {
+                            CALL_TYPES.find(
+                              (t) => t.id === confirmedBooking.type
+                            )?.duration
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <div>
+                        <p className="font-medium text-green-900 dark:text-green-100">
+                          {confirmedBooking.name}
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          {confirmedBooking.email}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Next Steps */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    What's Next?
+                  </h4>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                    <li>• Calendar invitation sent to your email</li>
+                    <li>• Reminder email 24 hours before</li>
+                    <li>• Join via the video link provided</li>
+                    <li>• Prepare any questions or topics</li>
+                  </ul>
                 </div>
               </div>
+            )}
 
-              <div>
-                <Label htmlFor="feedbackTitle">Title *</Label>
-                <Input
-                  id="feedbackTitle"
-                  value={feedbackForm.title}
-                  onChange={(e) =>
-                    setFeedbackForm((prev) => ({
-                      ...prev,
-                      title: e.target.value,
-                    }))
-                  }
-                  placeholder="Brief summary of your feedback"
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="feedbackDescription">Details *</Label>
-                <Textarea
-                  id="feedbackDescription"
-                  value={feedbackForm.description}
-                  onChange={(e) =>
-                    setFeedbackForm((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  placeholder="Please share your detailed feedback..."
-                  className="mt-1"
-                  rows={4}
-                />
-              </div>
-            </div>
             <DialogFooter>
               <Button
-                variant="outline"
-                onClick={() => setShowFeedbackModal(false)}
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmitFeedback}
-                disabled={isLoading}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-              >
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <Send className="h-4 w-4 mr-2" />
-                Send Feedback
+                Perfect, Thanks!
               </Button>
             </DialogFooter>
           </DialogContent>

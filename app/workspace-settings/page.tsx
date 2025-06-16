@@ -43,7 +43,7 @@ import {
   Save,
   Trash2,
   AlertTriangle,
-  //   Link,
+  Link2,
   Mail,
   Loader2,
   Edit,
@@ -52,10 +52,11 @@ import {
   Check,
   UserPlus,
   Crown,
-  Link2,
+  CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 const TEAM_ROLES = [
   {
@@ -88,11 +89,15 @@ interface TeamMember {
 
 export default function WorkspaceSettingsPage() {
   const { user } = useUser();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [showEditMemberModal, setShowEditMemberModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showDeleteWorkspaceModal, setShowDeleteWorkspaceModal] =
+    useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
@@ -125,32 +130,47 @@ export default function WorkspaceSettingsPage() {
     discordWebhook: '',
   });
 
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    {
-      id: '1',
-      name: 'John Doe',
-      email: 'john@example.com',
-      role: 'admin',
-      status: 'Active',
-      joinedDate: '2023-01-15',
-    },
-    {
-      id: '2',
-      name: 'Sarah Johnson',
-      email: 'sarah@example.com',
-      role: 'editor',
-      status: 'Active',
-      joinedDate: '2023-02-20',
-    },
-    {
-      id: '3',
-      name: 'Mike Wilson',
-      email: 'mike@example.com',
-      role: 'viewer',
-      status: 'Pending',
-      joinedDate: '2023-03-10',
-    },
-  ]);
+  // Load team members from localStorage
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  // Load team members on component mount
+  useEffect(() => {
+    const loadTeamMembers = () => {
+      const storedTeamMembers = JSON.parse(
+        localStorage.getItem('teamMembers') || '[]'
+      );
+
+      // If no team members exist, create the current user as admin
+      if (storedTeamMembers.length === 0 && user) {
+        const currentUserMember: TeamMember = {
+          id: '1',
+          name: user.fullName || 'Current User',
+          email: user.emailAddresses[0]?.emailAddress || 'user@example.com',
+          role: 'admin',
+          status: 'Active',
+          joinedDate: new Date().toISOString().split('T')[0],
+        };
+
+        const initialTeamMembers = [currentUserMember];
+        setTeamMembers(initialTeamMembers);
+        localStorage.setItem('teamMembers', JSON.stringify(initialTeamMembers));
+      } else {
+        setTeamMembers(storedTeamMembers);
+      }
+    };
+
+    loadTeamMembers();
+
+    // Listen for storage changes
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'teamMembers') {
+        loadTeamMembers();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [user]);
 
   // Apply theme changes immediately
   useEffect(() => {
@@ -187,6 +207,19 @@ export default function WorkspaceSettingsPage() {
     localStorage.setItem(
       'notifications',
       JSON.stringify([notification, ...existingNotifications])
+    );
+  };
+
+  const updateTeamMembersStorage = (updatedMembers: TeamMember[]) => {
+    setTeamMembers(updatedMembers);
+    localStorage.setItem('teamMembers', JSON.stringify(updatedMembers));
+
+    // Trigger storage event for cross-tab updates
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: 'teamMembers',
+        newValue: JSON.stringify(updatedMembers),
+      })
     );
   };
 
@@ -227,11 +260,11 @@ export default function WorkspaceSettingsPage() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      setTeamMembers((prev) =>
-        prev.map((member) =>
-          member.id === editingMember.id ? editingMember : member
-        )
+      const updatedMembers = teamMembers.map((member) =>
+        member.id === editingMember.id ? editingMember : member
       );
+
+      updateTeamMembersStorage(updatedMembers);
 
       addNotification(
         'Team Member Updated',
@@ -255,6 +288,16 @@ export default function WorkspaceSettingsPage() {
       return;
     }
 
+    // Check if email already exists
+    if (
+      teamMembers.some(
+        (member) => member.email.toLowerCase() === newMember.email.toLowerCase()
+      )
+    ) {
+      toast.error('A team member with this email already exists');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -266,7 +309,8 @@ export default function WorkspaceSettingsPage() {
         joinedDate: new Date().toISOString().split('T')[0],
       };
 
-      setTeamMembers((prev) => [...prev, member]);
+      const updatedMembers = [...teamMembers, member];
+      updateTeamMembersStorage(updatedMembers);
 
       addNotification(
         'Team Member Invited',
@@ -288,11 +332,21 @@ export default function WorkspaceSettingsPage() {
     const member = teamMembers.find((m) => m.id === memberId);
     if (!member) return;
 
+    // Prevent removing the last admin
+    const adminCount = teamMembers.filter((m) => m.role === 'admin').length;
+    if (member.role === 'admin' && adminCount <= 1) {
+      toast.error(
+        'Cannot remove the last admin. Please assign another admin first.'
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      setTeamMembers((prev) => prev.filter((m) => m.id !== memberId));
+      const updatedMembers = teamMembers.filter((m) => m.id !== memberId);
+      updateTeamMembersStorage(updatedMembers);
 
       addNotification(
         'Team Member Removed',
@@ -303,6 +357,45 @@ export default function WorkspaceSettingsPage() {
       toast.success('Team member removed successfully!');
     } catch (error) {
       toast.error('Failed to remove team member');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async () => {
+    // STRICT VALIDATION: Must be exactly "DELETE" in uppercase
+    if (deleteConfirmation !== 'DELETE') {
+      toast.error(
+        'Please type "DELETE" exactly in uppercase to confirm workspace deletion'
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Simulate workspace deletion process
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Clear all workspace data
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Add final notification before clearing
+      toast.success(
+        'Workspace deleted successfully. Redirecting to dashboard...'
+      );
+
+      // Close modal
+      setShowDeleteWorkspaceModal(false);
+      setDeleteConfirmation('');
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        router.push('/dashboard');
+      }, 2000);
+    } catch (error) {
+      console.error('Workspace deletion error:', error);
+      toast.error('Failed to delete workspace');
     } finally {
       setIsLoading(false);
     }
@@ -332,6 +425,9 @@ export default function WorkspaceSettingsPage() {
     };
     return colorMap[color] || 'bg-blue-500';
   };
+
+  // STRICT VALIDATION: Check if DELETE is typed exactly in uppercase
+  const isDeleteConfirmed = deleteConfirmation === 'DELETE';
 
   return (
     <div
@@ -556,7 +652,7 @@ export default function WorkspaceSettingsPage() {
               <CardHeader>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <CardTitle>Team Members</CardTitle>
+                    <CardTitle>Team Members ({teamMembers.length})</CardTitle>
                     <CardDescription>
                       Manage your team members and their permissions
                     </CardDescription>
@@ -571,68 +667,102 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4"
+                {teamMembers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400 mb-4">
+                      No team members yet
+                    </p>
+                    <Button
+                      onClick={() => setShowAddMemberModal(true)}
+                      className={`${getAccentColorClass(settings.accentColor)} hover:opacity-90 text-white`}
                     >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
-                          {member.name.charAt(0)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{member.name}</h4>
-                            {member.role === 'admin' && (
-                              <Crown className="h-4 w-4 text-yellow-500" />
-                            )}
+                      <Plus className="h-4 w-4 mr-2" />
+                      Invite Your First Team Member
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {teamMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-4"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                            {member.name.charAt(0).toUpperCase()}
                           </div>
-                          <p className="text-sm text-gray-600">
-                            {member.email}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Joined{' '}
-                            {new Date(member.joinedDate).toLocaleDateString()}
-                          </p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium">{member.name}</h4>
+                              {member.role === 'admin' && (
+                                <Crown className="h-4 w-4 text-yellow-500" />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              {member.email}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Joined{' '}
+                              {new Date(member.joinedDate).toLocaleDateString()}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <Badge
-                          variant={
-                            member.status === 'Active' ? 'default' : 'secondary'
-                          }
-                          className="text-xs"
-                        >
-                          {member.status}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {member.role}
-                        </Badge>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditMember(member)}
-                            className="text-xs px-2"
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <Badge
+                            variant={
+                              member.status === 'Active'
+                                ? 'default'
+                                : 'secondary'
+                            }
+                            className="text-xs"
                           >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          {member.role !== 'admin' && (
+                            {member.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-xs capitalize"
+                          >
+                            {member.role}
+                          </Badge>
+                          <div className="flex gap-1">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleRemoveMember(member.id)}
-                              className="text-xs px-2 text-red-600 hover:text-red-700"
+                              onClick={() => handleEditMember(member)}
+                              className="text-xs px-2"
                             >
-                              <X className="h-3 w-3" />
+                              <Edit className="h-3 w-3" />
                             </Button>
-                          )}
+                            {member.role !== 'admin' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveMember(member.id)}
+                                className="text-xs px-2 text-red-600 hover:text-red-700"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {/* Prevent removing the last admin */}
+                            {member.role === 'admin' &&
+                              teamMembers.filter((m) => m.role === 'admin')
+                                .length > 1 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRemoveMember(member.id)}
+                                  className="text-xs px-2 text-red-600 hover:text-red-700"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -782,9 +912,25 @@ export default function WorkspaceSettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-red-800 mb-2">Warning</h4>
+                  <p className="text-sm text-red-700 mb-3">
+                    This action cannot be undone. This will permanently delete
+                    your workspace, all projects, team data, and remove all team
+                    member associations.
+                  </p>
+                  <ul className="text-sm text-red-700 space-y-1">
+                    <li>• All workspace data will be permanently deleted</li>
+                    <li>• All projects and tasks will be lost</li>
+                    <li>• Team members will lose access</li>
+                    <li>• Billing and subscription will be canceled</li>
+                    <li>• This action cannot be reversed</li>
+                  </ul>
+                </div>
                 <Button
                   variant="destructive"
                   className="flex items-center gap-2"
+                  onClick={() => setShowDeleteWorkspaceModal(true)}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete Workspace
@@ -1030,6 +1176,103 @@ export default function WorkspaceSettingsPage() {
                 {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 <UserPlus className="h-4 w-4 mr-2" />
                 Send Invitation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Workspace Modal */}
+        <Dialog
+          open={showDeleteWorkspaceModal}
+          onOpenChange={setShowDeleteWorkspaceModal}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-red-700 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Workspace
+              </DialogTitle>
+              <DialogDescription>
+                This action cannot be undone. This will permanently delete your
+                workspace and all associated data.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-medium text-red-800 mb-2">
+                  What will be permanently deleted:
+                </h4>
+                <ul className="text-sm text-red-700 space-y-1">
+                  <li>
+                    • Workspace "{settings.workspaceName}" and all settings
+                  </li>
+                  <li>• All projects, tasks, and project data</li>
+                  <li>• All team members and their access</li>
+                  <li>• All uploaded files and documents</li>
+                  <li>• Billing history and subscription data</li>
+                  <li>• All integrations and webhooks</li>
+                  <li>• All notifications and activity history</li>
+                </ul>
+              </div>
+              <div>
+                <Label htmlFor="confirmDelete">
+                  Type "DELETE" to confirm *
+                </Label>
+                <Input
+                  id="confirmDelete"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="DELETE"
+                  className={`mt-1 ${
+                    deleteConfirmation && deleteConfirmation !== 'DELETE'
+                      ? 'border-red-300 focus:border-red-500'
+                      : deleteConfirmation === 'DELETE'
+                        ? 'border-green-300 focus:border-green-500'
+                        : ''
+                  }`}
+                />
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-gray-500">
+                    You must type "DELETE" exactly in uppercase to enable the
+                    delete button
+                  </p>
+                  {deleteConfirmation && deleteConfirmation !== 'DELETE' && (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Must be exactly "DELETE" in uppercase
+                    </p>
+                  )}
+                  {deleteConfirmation === 'DELETE' && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Confirmation verified
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteWorkspaceModal(false);
+                  setDeleteConfirmation('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteWorkspace}
+                disabled={isLoading || !isDeleteConfirmed}
+                className={`${
+                  !isDeleteConfirmed
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-red-700'
+                }`}
+              >
+                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Delete Workspace Permanently
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -78,17 +78,19 @@ interface Project {
 }
 
 const PRIORITY_COLORS = {
-  low: 'bg-gray-100 text-gray-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  high: 'bg-orange-100 text-orange-800',
-  urgent: 'bg-red-100 text-red-800',
+  low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+  medium:
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  urgent: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
 const STATUS_COLORS = {
-  active: 'bg-green-100 text-green-800',
-  paused: 'bg-yellow-100 text-yellow-800',
-  completed: 'bg-blue-100 text-blue-800',
-  archived: 'bg-gray-100 text-gray-800',
+  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  paused:
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
 };
 
 const PRIORITY_OPTIONS = [
@@ -321,22 +323,26 @@ export default function ProjectsPage() {
   const categories = [...new Set(projects.map((p) => p.category))];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
-              <Button variant="outline" size="sm">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
                 ← Back to Dashboard
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                 <FolderPlus className="h-8 w-8" />
                 Projects
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 dark:text-gray-300 mt-1">
                 Manage and track your projects and tasks
               </p>
             </div>
@@ -347,69 +353,73 @@ export default function ProjectsPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Total Projects
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.total}
                   </p>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <Target className="h-6 w-6 text-blue-600" />
+                <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+                  <Target className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                     Active Projects
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.active}
                   </p>
                 </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  <Activity className="h-6 w-6 text-green-600" />
+                <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+                  <Activity className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Completed</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Completed
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.completed}
                   </p>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <CheckCircle className="h-6 w-6 text-purple-600" />
+                <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
+                  <CheckCircle className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Overdue</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Overdue
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
                     {stats.overdue}
                   </p>
                 </div>
-                <div className="p-3 bg-red-100 rounded-full">
-                  <AlertCircle className="h-6 w-6 text-red-600" />
+                <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
+                  <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
               </div>
             </CardContent>
@@ -417,7 +427,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* Filters */}
-        <Card className="mb-8 border-0 shadow-lg">
+        <Card className="mb-8 border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardContent className="p-6">
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1 relative">
@@ -426,16 +436,16 @@ export default function ProjectsPage() {
                   placeholder="Search projects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                 />
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-32 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="paused">Paused</SelectItem>
@@ -448,10 +458,10 @@ export default function ProjectsPage() {
                   value={priorityFilter}
                   onValueChange={setPriorityFilter}
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-32 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                     <SelectValue placeholder="Priority" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                     <SelectItem value="all">All Priority</SelectItem>
                     <SelectItem value="urgent">Urgent</SelectItem>
                     <SelectItem value="high">High</SelectItem>
@@ -464,10 +474,10 @@ export default function ProjectsPage() {
                   value={categoryFilter}
                   onValueChange={setCategoryFilter}
                 >
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-32 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                     <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category, index) => (
                       <SelectItem
@@ -486,15 +496,15 @@ export default function ProjectsPage() {
 
         {/* Projects Grid */}
         {filteredProjects.length === 0 ? (
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardContent className="p-12 text-center">
-              <FolderPlus className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              <FolderPlus className="h-16 w-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 {projects.length === 0
                   ? 'No projects yet'
                   : 'No projects match your filters'}
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 {projects.length === 0
                   ? 'Create your first project to get started with organizing your work.'
                   : 'Try adjusting your search or filter criteria.'}
@@ -507,19 +517,23 @@ export default function ProjectsPage() {
             {filteredProjects.map((project) => (
               <Card
                 key={`project-${project.id}`}
-                className="border-0 shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
+                className="border-0 shadow-lg hover:shadow-xl transition-shadow cursor-pointer bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
               >
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg mb-2">
+                      <CardTitle className="text-lg mb-2 text-gray-900 dark:text-white">
                         {project.name}
                       </CardTitle>
-                      <CardDescription className="text-sm">
+                      <CardDescription className="text-sm text-gray-600 dark:text-gray-400">
                         {project.description || 'No description provided'}
                       </CardDescription>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-gray-500 dark:text-gray-400"
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </div>
@@ -531,20 +545,29 @@ export default function ProjectsPage() {
                     <Badge className={PRIORITY_COLORS[project.priority]}>
                       {project.priority}
                     </Badge>
-                    <Badge variant="outline">{project.category}</Badge>
+                    <Badge
+                      variant="outline"
+                      className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                    >
+                      {project.category}
+                    </Badge>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between text-sm mb-2">
-                      <span>Progress</span>
-                      <span>{project.progress}%</span>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        Progress
+                      </span>
+                      <span className="text-gray-900 dark:text-white">
+                        {project.progress}%
+                      </span>
                     </div>
                     <Progress value={project.progress} className="h-2" />
                   </div>
 
-                  <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-1">
                       <CheckCircle className="h-4 w-4" />
                       <span>{project.tasks.length} tasks</span>
@@ -568,6 +591,7 @@ export default function ProjectsPage() {
                           setSelectedProject(project);
                           setShowProjectModal(true);
                         }}
+                        className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View
@@ -577,6 +601,7 @@ export default function ProjectsPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleEditProject(project)}
+                        className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -589,6 +614,7 @@ export default function ProjectsPage() {
                             updateProjectStatus(project.id, 'paused')
                           }
                           disabled={isLoading}
+                          className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           <Pause className="h-4 w-4" />
                         </Button>
@@ -600,6 +626,7 @@ export default function ProjectsPage() {
                             updateProjectStatus(project.id, 'active')
                           }
                           disabled={isLoading}
+                          className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                         >
                           <Play className="h-4 w-4" />
                         </Button>
@@ -611,7 +638,7 @@ export default function ProjectsPage() {
                       size="sm"
                       onClick={() => deleteProject(project.id)}
                       disabled={isLoading}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -622,36 +649,40 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Project Details Modal */}
+        {/* Project Details Modal - Fixed positioning and scrollbars */}
         <Dialog open={showProjectModal} onOpenChange={setShowProjectModal}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+          <DialogContent className="sm:max-w-2xl max-w-[95vw] max-h-[90vh] p-0 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <DialogHeader className="p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
+              <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                 <FolderPlus className="h-5 w-5" />
                 {selectedProject?.name}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
                 Project details and task breakdown
               </DialogDescription>
             </DialogHeader>
 
             {selectedProject && (
-              <div className="space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto scrollbar-none max-h-[calc(90vh-140px)]">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-medium text-sm text-gray-600">
+                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
                       Template
                     </h4>
-                    <p className="text-sm">{selectedProject.templateName}</p>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {selectedProject.templateName}
+                    </p>
                   </div>
                   <div>
-                    <h4 className="font-medium text-sm text-gray-600">
+                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
                       Category
                     </h4>
-                    <p className="text-sm">{selectedProject.category}</p>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {selectedProject.category}
+                    </p>
                   </div>
                   <div>
-                    <h4 className="font-medium text-sm text-gray-600">
+                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
                       Status
                     </h4>
                     <Badge className={STATUS_COLORS[selectedProject.status]}>
@@ -659,7 +690,7 @@ export default function ProjectsPage() {
                     </Badge>
                   </div>
                   <div>
-                    <h4 className="font-medium text-sm text-gray-600">
+                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
                       Priority
                     </h4>
                     <Badge
@@ -671,32 +702,34 @@ export default function ProjectsPage() {
                 </div>
 
                 <div>
-                  <h4 className="font-medium text-sm text-gray-600 mb-2">
+                  <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400 mb-2">
                     Description
                   </h4>
-                  <p className="text-sm text-gray-800">
+                  <p className="text-sm text-gray-800 dark:text-gray-200">
                     {selectedProject.description || 'No description provided'}
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="font-medium text-sm text-gray-600 mb-3">
+                  <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Tasks ({selectedProject.tasks.length})
                   </h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-2">
                     {selectedProject.tasks.map((task, index) => (
                       <div
                         key={`task-${selectedProject.id}-${index}`}
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                       >
-                        <CheckCircle className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm">{task}</span>
+                        <CheckCircle className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {task}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-sm text-gray-600">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                   <span>
                     Created:{' '}
                     {new Date(selectedProject.createdAt).toLocaleDateString()}
@@ -711,10 +744,11 @@ export default function ProjectsPage() {
               </div>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
               <Button
                 variant="outline"
                 onClick={() => setShowProjectModal(false)}
+                className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Close
               </Button>
@@ -734,25 +768,30 @@ export default function ProjectsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Project Modal */}
+        {/* Edit Project Modal - Fixed positioning and scrollbars */}
         <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+          <DialogContent className="sm:max-w-4xl max-w-[95vw] max-h-[95vh] p-0 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <DialogHeader className="p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
+              <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                 <Edit className="h-5 w-5" />
                 Edit Project
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
                 Modify project details, tasks, and settings
               </DialogDescription>
             </DialogHeader>
 
             {editingProject && (
-              <div className="space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto scrollbar-none max-h-[calc(95vh-140px)]">
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <Label htmlFor="edit-name">Project Name *</Label>
+                    <Label
+                      htmlFor="edit-name"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Project Name *
+                    </Label>
                     <Input
                       id="edit-name"
                       value={editingProject.name}
@@ -760,12 +799,17 @@ export default function ProjectsPage() {
                         updateEditingProject('name', e.target.value)
                       }
                       placeholder="Enter project name"
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <Label htmlFor="edit-description">Description</Label>
+                    <Label
+                      htmlFor="edit-description"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Description
+                    </Label>
                     <Textarea
                       id="edit-description"
                       value={editingProject.description}
@@ -773,23 +817,25 @@ export default function ProjectsPage() {
                         updateEditingProject('description', e.target.value)
                       }
                       placeholder="Describe your project"
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                       rows={3}
                     />
                   </div>
 
                   <div>
-                    <Label>Status</Label>
+                    <Label className="text-gray-700 dark:text-gray-300">
+                      Status
+                    </Label>
                     <Select
                       value={editingProject.status}
                       onValueChange={(value) =>
                         updateEditingProject('status', value)
                       }
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                         {STATUS_OPTIONS.map((status) => (
                           <SelectItem key={status.value} value={status.value}>
                             {status.label}
@@ -800,17 +846,19 @@ export default function ProjectsPage() {
                   </div>
 
                   <div>
-                    <Label>Priority</Label>
+                    <Label className="text-gray-700 dark:text-gray-300">
+                      Priority
+                    </Label>
                     <Select
                       value={editingProject.priority}
                       onValueChange={(value) =>
                         updateEditingProject('priority', value)
                       }
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                         {PRIORITY_OPTIONS.map((priority) => (
                           <SelectItem
                             key={priority.value}
@@ -824,7 +872,12 @@ export default function ProjectsPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="edit-category">Category</Label>
+                    <Label
+                      htmlFor="edit-category"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Category
+                    </Label>
                     <Input
                       id="edit-category"
                       value={editingProject.category}
@@ -832,12 +885,17 @@ export default function ProjectsPage() {
                         updateEditingProject('category', e.target.value)
                       }
                       placeholder="Project category"
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="edit-dueDate">Due Date</Label>
+                    <Label
+                      htmlFor="edit-dueDate"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Due Date
+                    </Label>
                     <Input
                       id="edit-dueDate"
                       type="date"
@@ -845,12 +903,17 @@ export default function ProjectsPage() {
                       onChange={(e) =>
                         updateEditingProject('dueDate', e.target.value)
                       }
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="edit-progress">Progress (%)</Label>
+                    <Label
+                      htmlFor="edit-progress"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Progress (%)
+                    </Label>
                     <Input
                       id="edit-progress"
                       type="number"
@@ -863,12 +926,17 @@ export default function ProjectsPage() {
                           parseInt(e.target.value) || 0
                         )
                       }
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="edit-template">Template</Label>
+                    <Label
+                      htmlFor="edit-template"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Template
+                    </Label>
                     <Input
                       id="edit-template"
                       value={editingProject.templateName}
@@ -876,14 +944,14 @@ export default function ProjectsPage() {
                         updateEditingProject('templateName', e.target.value)
                       }
                       placeholder="Template name"
-                      className="mt-1"
+                      className="mt-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                   </div>
                 </div>
 
                 {/* Tasks Management */}
                 <div>
-                  <Label className="text-base font-semibold">
+                  <Label className="text-base font-semibold text-gray-700 dark:text-gray-300">
                     Tasks ({editingProject.tasks.length})
                   </Label>
 
@@ -894,7 +962,7 @@ export default function ProjectsPage() {
                       onChange={(e) => setNewTask(e.target.value)}
                       placeholder="Add a new task..."
                       onKeyPress={(e) => e.key === 'Enter' && addTask()}
-                      className="flex-1"
+                      className="flex-1 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     />
                     <Button
                       type="button"
@@ -908,29 +976,29 @@ export default function ProjectsPage() {
                   </div>
 
                   {/* Tasks List */}
-                  <div className="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-4">
+                  <div className="space-y-2 border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700">
                     {editingProject.tasks.length === 0 ? (
-                      <p className="text-sm text-gray-500 text-center py-4">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
                         No tasks yet. Add your first task above.
                       </p>
                     ) : (
                       editingProject.tasks.map((task, index) => (
                         <div
                           key={`edit-task-${index}`}
-                          className="flex items-center gap-2 p-2 bg-gray-50 rounded"
+                          className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600"
                         >
-                          <CheckCircle className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <CheckCircle className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                           <Input
                             value={task}
                             onChange={(e) => updateTask(index, e.target.value)}
-                            className="flex-1 text-sm border-none bg-transparent p-0 h-auto focus:ring-0"
+                            className="flex-1 text-sm border-none bg-transparent p-0 h-auto focus:ring-0 text-gray-900 dark:text-white"
                           />
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => removeTask(index)}
-                            className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
+                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 h-6 w-6 p-0"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -941,13 +1009,15 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Project Summary */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
                     Project Summary
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-blue-700">Status:</span>
+                      <span className="text-blue-700 dark:text-blue-300">
+                        Status:
+                      </span>
                       <Badge
                         className={STATUS_COLORS[editingProject.status]}
                         variant="destructive"
@@ -956,23 +1026,29 @@ export default function ProjectsPage() {
                       </Badge>
                     </div>
                     <div>
-                      <span className="text-blue-700">Priority:</span>
+                      <span className="text-blue-700 dark:text-blue-300">
+                        Priority:
+                      </span>
                       <Badge
                         className={PRIORITY_COLORS[editingProject.priority]}
-                        variant="destructive"
+                        variant="outline"
                       >
                         {editingProject.priority}
                       </Badge>
                     </div>
                     <div>
-                      <span className="text-blue-700">Tasks:</span>
-                      <span className="ml-2 font-medium">
+                      <span className="text-blue-700 dark:text-blue-300">
+                        Tasks:
+                      </span>
+                      <span className="ml-2 font-medium text-blue-900 dark:text-blue-100">
                         {editingProject.tasks.length}
                       </span>
                     </div>
                     <div>
-                      <span className="text-blue-700">Progress:</span>
-                      <span className="ml-2 font-medium">
+                      <span className="text-blue-700 dark:text-blue-300">
+                        Progress:
+                      </span>
+                      <span className="ml-2 font-medium text-blue-900 dark:text-blue-100">
                         {editingProject.progress}%
                       </span>
                     </div>
@@ -981,7 +1057,7 @@ export default function ProjectsPage() {
               </div>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -990,6 +1066,7 @@ export default function ProjectsPage() {
                   setNewTask('');
                 }}
                 disabled={isLoading}
+                className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Cancel
               </Button>
