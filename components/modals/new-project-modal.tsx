@@ -251,7 +251,7 @@ export function NewProjectModal({ trigger }: NewProjectModalProps) {
                       key={template.id}
                       type="button"
                       onClick={() => setSelectedTemplate(template.id)}
-                      className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
+                      className={`p-4 border-2 rounded-lg text-left transition-all cursor-pointer hover:shadow-md ${
                         selectedTemplate === template.id
                           ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
                           : 'border-gray-200 hover:border-gray-300'
