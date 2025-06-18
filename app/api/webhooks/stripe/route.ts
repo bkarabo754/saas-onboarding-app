@@ -12,6 +12,14 @@ export async function POST(request: NextRequest) {
 
     let event: Stripe.Event;
 
+    if (!stripe) {
+      console.error('Stripe instance is not initialized.');
+      return NextResponse.json(
+        { error: 'Stripe instance is not initialized' },
+        { status: 500 }
+      );
+    }
+
     try {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err) {
