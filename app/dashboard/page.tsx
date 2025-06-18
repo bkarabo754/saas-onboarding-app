@@ -792,7 +792,7 @@ export default function DashboardPage() {
                         key={template.id}
                         onClick={() => createProjectFromTemplate(template)}
                         disabled={isCreatingProject}
-                        className="p-4 border-2 rounded-lg text-center hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed group border-gray-200 dark:border-gray-600"
+                        className="p-4 border-2 rounded-lg text-center hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed group border-gray-200 dark:border-gray-600 cursor-pointer"
                       >
                         <div className="flex flex-col items-center space-y-2">
                           <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900 transition-colors">

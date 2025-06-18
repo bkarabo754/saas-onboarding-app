@@ -225,7 +225,7 @@ export function NewProjectModal({ trigger }: NewProjectModalProps) {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="sm:max-w-3xl p-0 overflow-hidden rounded-xl">
-        <div className="max-h-[calc(90vh-2rem)] scroll-smooth p-6">
+        <div className="max-h-[calc(90vh-2rem)] overflow-y-auto scroll-smooth p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderPlus className="h-5 w-5" />
