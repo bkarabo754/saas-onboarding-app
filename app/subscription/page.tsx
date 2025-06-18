@@ -56,6 +56,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { format } from 'date-fns';
 import { PRICING_PLANS } from '@/lib/stripe';
 import {
   paymentMethodSchema,
@@ -328,7 +329,7 @@ export default function SubscriptionPage() {
         margin,
         yPosition
       );
-      yPosition = addText('support@onboardIQ.com', margin, yPosition);
+      yPosition = addText('support@onboardingiq.com', margin, yPosition);
 
       // Invoice details (right side)
       pdf.setFont('helvetica', 'bold');
@@ -485,6 +486,13 @@ export default function SubscriptionPage() {
   const currentPlanData =
     PRICING_PLANS[currentPlan as keyof typeof PRICING_PLANS];
   const cardType = getCardType(paymentDetails.cardNumber);
+
+  const currentDate = new Date();
+  const nextBillingDate = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth() + 1,
+    currentDate.getDate()
+  );
 
   // Check if form is valid for enabling the button
   const isFormValid = () => {
@@ -644,7 +652,9 @@ export default function SubscriptionPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span>Next billing date:</span>
-                      <span className="font-medium">July 15, 2025</span>
+                      <span className="font-medium">
+                        {format(nextBillingDate, 'MMMM d, yyyy')}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Billing amount:</span>

@@ -32,9 +32,11 @@ import { NotificationDropdown } from '@/components/ui/notification-dropdown';
 import { UserAvatarDropdown } from '@/components/ui/user-avatar-dropdown';
 import { NewProjectModal } from '@/components/modals/new-project-modal';
 import { InviteTeamModal } from '@/components/modals/invite-team-modal';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { PRICING_PLANS } from '@/lib/stripe';
 
 interface ActivityItem {
   id: string;
@@ -167,6 +169,7 @@ export default function DashboardPage() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [currentPlan, setCurrentPlan] = useState('free'); // Default to free plan
   const [stats, setStats] = useState({
     totalProjects: 0,
     teamMembers: 0,
@@ -189,6 +192,10 @@ export default function DashboardPage() {
         localStorage.getItem('teamMembers') || '[]'
       );
       setTeamMembers(storedTeamMembers);
+
+      // Load current plan from localStorage (same source as subscription page)
+      const storedPlan = localStorage.getItem('currentPlan') || 'free';
+      setCurrentPlan(storedPlan);
 
       // Load notifications as activity
       const notifications = JSON.parse(
@@ -264,7 +271,8 @@ export default function DashboardPage() {
       if (
         e.key === 'notifications' ||
         e.key === 'projects' ||
-        e.key === 'teamMembers'
+        e.key === 'teamMembers' ||
+        e.key === 'currentPlan'
       ) {
         loadData();
       }
@@ -280,6 +288,14 @@ export default function DashboardPage() {
       clearInterval(interval);
     };
   }, []);
+
+  // Calculate next billing date
+  const currentDate = new Date();
+  const nextBillingDate = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth() + 1,
+    currentDate.getDate()
+  );
 
   const getRelativeTime = (date: Date) => {
     const now = new Date();
@@ -444,6 +460,10 @@ export default function DashboardPage() {
 
     return trends[type as keyof typeof trends] || trends.projects;
   };
+
+  // Get current plan data
+  const currentPlanData =
+    PRICING_PLANS[currentPlan as keyof typeof PRICING_PLANS];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -717,7 +737,19 @@ export default function DashboardPage() {
                   }
                 />
 
-                <InviteTeamModal />
+                <Link href="/projects">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Projects
+                  </Button>
+                </Link>
+
+                <div className="mt-3">
+                  <InviteTeamModal />
+                </div>
 
                 <Link href="/workspace-settings">
                   <Button
@@ -822,8 +854,18 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Current Plan
                     </span>
-                    <Badge className="bg-gradient-to-r from-blue-600 to-purple-600">
-                      Professional
+                    <Badge
+                      className={
+                        currentPlan === 'free'
+                          ? 'bg-gray-100 text-gray-800'
+                          : currentPlan === 'starter'
+                            ? 'bg-blue-100 text-blue-800'
+                            : currentPlan === 'professional'
+                              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                              : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                      }
+                    >
+                      {currentPlanData?.name || 'Free'}
                     </Badge>
                   </div>
                   <div className="space-y-2">
@@ -832,7 +874,14 @@ export default function DashboardPage() {
                         Team members
                       </span>
                       <span className="text-gray-900 dark:text-white">
-                        {stats.teamMembers} / 25
+                        {stats.teamMembers} /{' '}
+                        {currentPlan === 'free'
+                          ? '2'
+                          : currentPlan === 'starter'
+                            ? '5'
+                            : currentPlan === 'professional'
+                              ? '25'
+                              : '∞'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -840,7 +889,14 @@ export default function DashboardPage() {
                         Storage used
                       </span>
                       <span className="text-gray-900 dark:text-white">
-                        24GB / 100GB
+                        24GB /{' '}
+                        {currentPlan === 'free'
+                          ? '1GB'
+                          : currentPlan === 'starter'
+                            ? '10GB'
+                            : currentPlan === 'professional'
+                              ? '100GB'
+                              : '∞'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -848,7 +904,9 @@ export default function DashboardPage() {
                         Next billing
                       </span>
                       <span className="text-gray-900 dark:text-white">
-                        July 15, 2025
+                        {currentPlan === 'free'
+                          ? 'Free'
+                          : format(nextBillingDate, 'MMMM d, yyyy')}
                       </span>
                     </div>
                   </div>

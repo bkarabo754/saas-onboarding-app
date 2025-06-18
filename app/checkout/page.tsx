@@ -132,7 +132,7 @@ export default function CheckoutPage() {
       zipCode: '',
       country: 'ZA',
     },
-    mode: 'onChange', // Validate on change for better UX
+    mode: 'onChange',
   });
 
   const {

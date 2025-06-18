@@ -1241,7 +1241,7 @@ export default function HelpSupportPage() {
                     What's Next?
                   </h4>
                   <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                    <li>• Calendar invitation sent to your email</li>
+                    <li>• Calendar invitation will be sent to your email</li>
                     <li>• Reminder email 24 hours before</li>
                     <li>• Join via the video link provided</li>
                     <li>• Prepare any questions or topics</li>

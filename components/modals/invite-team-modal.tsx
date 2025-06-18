@@ -105,7 +105,10 @@ export function InviteTeamModal({ trigger }: InviteTeamModalProps) {
   };
 
   const defaultTrigger = (
-    <Button variant="outline" className="w-full justify-start cursor-pointer">
+    <Button
+      variant="outline"
+      className="w-full justify-start border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+    >
       <Users className="h-4 w-4 mr-2" />
       Invite Team Member
     </Button>

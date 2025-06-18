@@ -224,224 +224,235 @@ export function NewProjectModal({ trigger }: NewProjectModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FolderPlus className="h-5 w-5" />
-            Create New Project
-          </DialogTitle>
-          <DialogDescription>
-            Choose a template and set up your project to organize work and
-            collaborate with your team.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-3xl p-0 overflow-hidden rounded-xl">
+        <div className="max-h-[calc(90vh-2rem)] scroll-smooth p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="h-5 w-5" />
+              Create New Project
+            </DialogTitle>
+            <DialogDescription>
+              Choose a template and set up your project to organize work and
+              collaborate with your team.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Project Templates */}
-          <div>
-            <Label className="text-base font-semibold">Choose a template</Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-              {PROJECT_TEMPLATES.map((template) => {
-                const Icon = template.icon;
-                return (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => setSelectedTemplate(template.id)}
-                    className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
-                      selectedTemplate === template.id
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`p-2 rounded-lg ${template.color}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-sm">{template.name}</h4>
-                        <p className="text-xs text-gray-600 mt-1">
-                          {template.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {template.category}
-                      </Badge>
-                      <Badge className={template.color}>
-                        {template.defaultTasks.length} tasks
-                      </Badge>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Template Preview */}
-          {selectedTemplateData && (
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-3">
-                <selectedTemplateData.icon className="h-5 w-5 text-blue-600" />
-                <h4 className="font-medium text-blue-900">
-                  {selectedTemplateData.name} Template
-                </h4>
-              </div>
-              <p className="text-sm text-blue-800 mb-3">
-                {selectedTemplateData.description}
-              </p>
-              <div className="space-y-2">
-                <h5 className="text-sm font-medium text-blue-900">
-                  Included tasks:
-                </h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                  {selectedTemplateData.defaultTasks.map((task, index) => (
-                    <div
-                      key={index}
-                      className="text-xs text-blue-700 flex items-center gap-2"
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Project Templates */}
+            <div>
+              <Label className="text-base font-semibold">
+                Choose a template
+              </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                {PROJECT_TEMPLATES.map((template) => {
+                  const Icon = template.icon;
+                  return (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => setSelectedTemplate(template.id)}
+                      className={`p-4 border-2 rounded-lg text-left transition-all hover:shadow-md ${
+                        selectedTemplate === template.id
+                          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
                     >
-                      <CheckCircle className="w-3 h-3 text-green-600" />
-                      {task}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Project Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <Label htmlFor="name">Project Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="Enter project name"
-                required
-                className="mt-1"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Describe your project goals and objectives"
-                className="mt-1"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="priority">Priority</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, priority: value }))
-                }
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_LEVELS.map((level) => (
-                    <SelectItem key={level.value} value={level.value}>
-                      <div className="flex items-center gap-2">
-                        <Badge className={level.color}>{level.label}</Badge>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`p-2 rounded-lg ${template.color}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-sm">
+                            {template.name}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {template.description}
+                          </p>
+                        </div>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="dueDate">Due Date</Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={formData.dueDate}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, dueDate: e.target.value }))
-                }
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          {/* Project Summary */}
-          {formData.name && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-sm mb-2">Project Summary</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Template:</span>
-                  <span className="ml-2 font-medium">
-                    {selectedTemplateData?.name}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Tasks:</span>
-                  <span className="ml-2 font-medium">
-                    {selectedTemplateData?.defaultTasks.length}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Priority:</span>
-                  <Badge
-                    className={
-                      PRIORITY_LEVELS.find((p) => p.value === formData.priority)
-                        ?.color
-                    }
-                    variant="destructive"
-                  >
-                    {
-                      PRIORITY_LEVELS.find((p) => p.value === formData.priority)
-                        ?.label
-                    }
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-gray-600">Category:</span>
-                  <span className="ml-2 font-medium">
-                    {selectedTemplateData?.category}
-                  </span>
-                </div>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">
+                          {template.category}
+                        </Badge>
+                        <Badge className={template.color}>
+                          {template.defaultTasks.length} tasks
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsOpen(false)}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!formData.name || isLoading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <FolderPlus className="h-4 w-4 mr-2" />
-              Create Project
-            </Button>
-          </DialogFooter>
-        </form>
+            {/* Template Preview */}
+            {selectedTemplateData && (
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border">
+                <div className="flex items-center gap-2 mb-3">
+                  <selectedTemplateData.icon className="h-5 w-5 text-blue-600" />
+                  <h4 className="font-medium text-blue-900">
+                    {selectedTemplateData.name} Template
+                  </h4>
+                </div>
+                <p className="text-sm text-blue-800 mb-3">
+                  {selectedTemplateData.description}
+                </p>
+                <div className="space-y-2">
+                  <h5 className="text-sm font-medium text-blue-900">
+                    Included tasks:
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                    {selectedTemplateData.defaultTasks.map((task, index) => (
+                      <div
+                        key={index}
+                        className="text-xs text-blue-700 flex items-center gap-2"
+                      >
+                        <CheckCircle className="w-3 h-3 text-green-600" />
+                        {task}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Project Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <Label htmlFor="name">Project Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  placeholder="Enter project name"
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Describe your project goals and objectives"
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="priority">Priority</Label>
+                <Select
+                  value={formData.priority}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, priority: value }))
+                  }
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_LEVELS.map((level) => (
+                      <SelectItem key={level.value} value={level.value}>
+                        <div className="flex items-center gap-2">
+                          <Badge className={level.color}>{level.label}</Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="dueDate">Due Date</Label>
+                <Input
+                  id="dueDate"
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      dueDate: e.target.value,
+                    }))
+                  }
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            {/* Project Summary */}
+            {formData.name && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-sm mb-2">Project Summary</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Template:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedTemplateData?.name}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Tasks:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedTemplateData?.defaultTasks.length}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Priority:</span>
+                    <Badge
+                      className={
+                        PRIORITY_LEVELS.find(
+                          (p) => p.value === formData.priority
+                        )?.color
+                      }
+                      variant="destructive"
+                    >
+                      {
+                        PRIORITY_LEVELS.find(
+                          (p) => p.value === formData.priority
+                        )?.label
+                      }
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Category:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedTemplateData?.category}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!formData.name || isLoading}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Create Project
+              </Button>
+            </DialogFooter>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -56,6 +56,9 @@ import {
   Share2,
   Save,
   X,
+  WorkflowIcon,
+  Workflow,
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -365,7 +368,7 @@ export default function ProjectsPage() {
                   </p>
                 </div>
                 <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
-                  <Target className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <Wrench className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
@@ -649,10 +652,10 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Project Details Modal - Fixed positioning and scrollbars */}
+        {/* Project Details Modal */}
         <Dialog open={showProjectModal} onOpenChange={setShowProjectModal}>
-          <DialogContent className="sm:max-w-2xl max-w-[95vw] max-h-[90vh] p-0 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <DialogHeader className="p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
+          <DialogContent className="sm:max-w-2xl max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
               <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                 <FolderPlus className="h-5 w-5" />
                 {selectedProject?.name}
@@ -663,7 +666,7 @@ export default function ProjectsPage() {
             </DialogHeader>
 
             {selectedProject && (
-              <div className="p-6 space-y-6 overflow-y-auto scrollbar-none max-h-[calc(90vh-140px)]">
+              <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">
@@ -744,7 +747,7 @@ export default function ProjectsPage() {
               </div>
             )}
 
-            <DialogFooter className="p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+            <DialogFooter className="flex-shrink-0 p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
               <Button
                 variant="outline"
                 onClick={() => setShowProjectModal(false)}
@@ -768,10 +771,10 @@ export default function ProjectsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Project Modal - Fixed positioning and scrollbars */}
+        {/* Edit Project Modal */}
         <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent className="sm:max-w-4xl max-w-[95vw] max-h-[95vh] p-0 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <DialogHeader className="p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
+          <DialogContent className="sm:max-w-4xl max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <DialogHeader className="flex-shrink-0 p-6 pb-4 border-b border-gray-200 dark:border-gray-600">
               <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                 <Edit className="h-5 w-5" />
                 Edit Project
@@ -782,7 +785,7 @@ export default function ProjectsPage() {
             </DialogHeader>
 
             {editingProject && (
-              <div className="p-6 space-y-6 overflow-y-auto scrollbar-none max-h-[calc(95vh-140px)]">
+              <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -1057,7 +1060,7 @@ export default function ProjectsPage() {
               </div>
             )}
 
-            <DialogFooter className="p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+            <DialogFooter className="flex-shrink-0 p-6 pt-4 border-t border-gray-200 dark:border-gray-600">
               <Button
                 variant="outline"
                 onClick={() => {

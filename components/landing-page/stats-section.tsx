@@ -2,9 +2,9 @@
 
 const stats = [
   {
-    value: '10k+',
+    value: '5',
     label: 'Companies onboarded',
-    description: 'Trusted by thousands of businesses worldwide',
+    description: 'Trusted by businesses worldwide',
   },
   {
     value: '98%',
